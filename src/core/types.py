@@ -127,6 +127,7 @@ class ExtractedFeatures:
     attn_diags: Optional[torch.Tensor] = None
     laplacian_diags: Optional[torch.Tensor] = None
     attn_entropy: Optional[torch.Tensor] = None
+    full_attention: Optional[torch.Tensor] = None  # [n_layers, n_heads, seq_len, seq_len]
     
     # Hidden states (pooled)
     hidden_states: Optional[torch.Tensor] = None
@@ -163,7 +164,7 @@ class ExtractedFeatures:
         
         # Save tensors
         tensors = {}
-        for name in ["attn_diags", "laplacian_diags", "attn_entropy", 
+        for name in ["attn_diags", "laplacian_diags", "attn_entropy", "full_attention", 
                      "hidden_states", "token_probs", "token_entropy",
                      "top_k_probs", "top_k_indices"]:
             val = getattr(self, name)
@@ -195,6 +196,7 @@ class ExtractedFeatures:
             attn_diags=tensors.get("attn_diags"),
             laplacian_diags=tensors.get("laplacian_diags"),
             attn_entropy=tensors.get("attn_entropy"),
+            full_attention=tensors. get("full_attention"),
             hidden_states=tensors.get("hidden_states"),
             token_probs=tensors.get("token_probs"),
             token_entropy=tensors.get("token_entropy"),

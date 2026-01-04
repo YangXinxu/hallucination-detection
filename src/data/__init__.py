@@ -1,44 +1,58 @@
-"""Data loading module for hallucination detection. 
+"""Data loading and processing utilities."""
 
-Provides: 
-- Dataset classes for various benchmarks
-- Factory functions for dataset creation
-- Formatters for prompt preparation
-"""
-
-from .base import BaseDataset, JsonDataset, JsonlDataset
-from . factory import get_dataset, prepare_dataset, load_dataset_with_labels
-from . formatter import (
-    DatasetFormatter,
-    QaFormatter,
-    RAGTruthFormatter,
-    HaluEvalFormatter,
-    TruthfulQAFormatter,
-    get_formatter,
+from .base import (
+    BaseDataset,
+    JsonlDataset,
+    JsonDataset,
+    create_dataset,
+    load_samples,
 )
+
+from .halueval import HaluEvalDataset
 from .ragtruth import RAGTruthDataset
 from .truthfulqa import TruthfulQADataset
-from .halueval import HaluEvalDataset, HaluEvalQADataset
+
+from .splitter import (
+    DatasetSplitter,
+    auto_split_dataset,
+    split_features,
+)
+
+
+def get_dataset(config, split=None, **kwargs):
+    """Get dataset by config.
+
+    Args:
+        config: DatasetConfig instance
+        split: Optional split to filter
+        **kwargs: Additional arguments
+
+    Returns: 
+        Dataset instance
+    """
+    from src.core import DATASETS
+
+    name = config.name. lower()
+
+    if DATASETS.contains(name):
+        dataset = DATASETS.create(name, path=config.path, config=config, **kwargs)
+    else:
+        dataset = create_dataset(config. path, config=config, **kwargs)
+
+    return dataset
+
 
 __all__ = [
-    # Base
     "BaseDataset",
-    "JsonDataset",
     "JsonlDataset",
-    # Factory
+    "JsonDataset",
+    "create_dataset",
+    "load_samples",
     "get_dataset",
-    "prepare_dataset",
-    "load_dataset_with_labels",
-    # Formatters
-    "DatasetFormatter",
-    "QaFormatter",
-    "RAGTruthFormatter",
-    "HaluEvalFormatter",
-    "TruthfulQAFormatter",
-    "get_formatter",
-    # Datasets
+    "HaluEvalDataset",
     "RAGTruthDataset",
     "TruthfulQADataset",
-    "HaluEvalDataset",
-    "HaluEvalQADataset",
+    "DatasetSplitter",
+    "auto_split_dataset",
+    "split_features",
 ]

@@ -328,6 +328,9 @@ class FeatureExtractor:
             
             # Compute attention entropy
             features.attn_entropy = compute_attention_entropy(stacked).squeeze(1)
+
+        if getattr(self. config, 'store_full_attention', False):
+            features.full_attention = stacked. squeeze(1)  # [n_layers, n_heads, seq, seq]
         
         # Extract hidden state features
         if self.config.hidden_states_enabled and "hidden_states" in outputs:

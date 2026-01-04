@@ -1,0 +1,31 @@
+# Hypergraph-based Hallucination Detection Configuration
+name: hypergraph
+cls_path: src.methods.hypergraph. HypergraphMethod
+
+classifier:  logistic
+cv_folds: 5
+random_seed: ${seed}
+
+# Method specific parameters
+params: 
+  # Model architecture
+  hidden_dim: 128
+  gnn_layers: 2
+  dropout: 0.25
+  residual_mp: true
+  
+  # Training
+  lr: 3e-4
+  weight_decay:  0.001
+  epochs: 50
+  patience: 5
+  
+  # Hypergraph construction
+  attention_threshold: 0.05
+  topk_per_row: 16
+  min_members_in_he: 2
+  include_center_token: true
+  
+  # Prediction aggregation
+  aggregation: max  # max, mean, any
+  score_threshold: 0.5

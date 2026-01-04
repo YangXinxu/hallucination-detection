@@ -1,0 +1,20 @@
+# Feature extraction with full attention matrices
+# Required for hypergraph-based methods
+
+# Basic settings
+mode: teacher_forcing
+max_length: 2048
+
+# Attention features
+attention_enabled: true
+attention_layers: "all"  # all layers needed for hypergraph
+store_full_attention:  true  # Store full attention matrices
+
+# Standard features (still compute for compatibility)
+hidden_states_enabled: true
+hidden_states_layers: "last"
+hidden_states_pooling: last_token
+
+# Token probability
+token_probs_enabled: true
+token_probs_top_k: 10
