@@ -27,17 +27,17 @@ logger = logging.getLogger(__name__)
 
 def get_model_short_name(cfg: DictConfig) -> str:
     """Get short name for model."""
-    if hasattr(cfg.model, 'short_name') and cfg.model.short_name:
-        return cfg.model.short_name
+    if hasattr(cfg. model, 'short_name') and cfg.model. short_name: 
+        return cfg. model.short_name
     # Extract from path
     model_name = cfg.model.name
     return model_name.split("/")[-1]
 
 
-def build_output_dir(cfg: DictConfig) -> Path:
+def build_output_dir(cfg:  DictConfig) -> Path:
     """Build output directory path from config."""
     base_dir = Path(cfg.features_dir)
-    dataset_name = cfg.dataset.name
+    dataset_name = cfg. dataset.name
     
     # 处理 task_types
     task_types = cfg.dataset.get('task_types', None)
@@ -55,6 +55,21 @@ def build_output_dir(cfg: DictConfig) -> Path:
     return output_dir
 
 
+def load_split_samples(cfg: DictConfig) -> List[Sample]:
+    """Load samples from split_dataset output if available."""
+    split_data_dir = Path(cfg.get('output_dir', 'outputs')) / "split_data" / cfg.dataset. name
+    samples_path = split_data_dir / "samples. pkl"
+    
+    if samples_path. exists():
+        logger.info(f"Loading pre-split samples from {samples_path}")
+        with open(samples_path, "rb") as f:
+            samples = pickle.load(f)
+        logger.info(f"Loaded {len(samples)} pre-split samples")
+        return samples
+    
+    return None
+
+
 def save_features_lapeigvals_style(features_list: List[ExtractedFeatures], output_dir: Path) -> None:
     """Save features in lapeigvals format."""
     attn_diags = []
@@ -63,12 +78,12 @@ def save_features_lapeigvals_style(features_list: List[ExtractedFeatures], outpu
     attn_entropy = []
     token_probs = []
     
-    for feat in features_list:
-        if feat.attn_diags is not None:
-            attn_diags.append(feat.attn_diags.cpu())
+    for feat in features_list: 
+        if feat. attn_diags is not None: 
+            attn_diags.append(feat.attn_diags. cpu())
         if feat.laplacian_diags is not None:
             laplacian_diags.append(feat.laplacian_diags.cpu())
-        if feat.hidden_states is not None:
+        if feat. hidden_states is not None:
             hidden_states.append(feat.hidden_states.cpu())
         if feat.attn_entropy is not None:
             attn_entropy.append(feat.attn_entropy.cpu())
@@ -76,14 +91,14 @@ def save_features_lapeigvals_style(features_list: List[ExtractedFeatures], outpu
             token_probs.append(feat.token_probs.cpu())
     
     if attn_diags:
-        torch.save(attn_diags, output_dir / "attn_diags.pt")
-        logger.info(f"Saved attention diagonals: {len(attn_diags)} samples")
+        torch.save(attn_diags, output_dir / "attn_diags. pt")
+        logger.info(f"Saved attention diagonals:  {len(attn_diags)} samples")
     
     if laplacian_diags:
         torch.save(laplacian_diags, output_dir / "laplacian_diags.pt")
         logger.info(f"Saved Laplacian diagonals: {len(laplacian_diags)} samples")
     
-    if hidden_states:
+    if hidden_states: 
         torch.save(hidden_states, output_dir / "hidden_states.pt")
         logger.info(f"Saved hidden states: {len(hidden_states)} samples")
     
@@ -93,28 +108,24 @@ def save_features_lapeigvals_style(features_list: List[ExtractedFeatures], outpu
     
     if token_probs:
         torch.save(token_probs, output_dir / "token_probs.pt")
-        logger.info(f"Saved token probabilities: {len(token_probs)} samples")
+        logger.info(f"Saved token probabilities:  {len(token_probs)} samples")
 
 
 def save_answers(samples: List[Sample], output_path: Path) -> None:
-    """Save sample answers/responses to JSON with hallucination span annotations.
-    
-    Format aligned with RAGTruth for consistency - includes hallucination spans
-    with character positions when available.
-    """
+    """Save sample answers/responses to JSON with hallucination span annotations."""
     answers = []
     for sample in samples:
         sample_data = {
             "id": sample.id,
             "prompt": sample.prompt,
-            "response": sample.response,
+            "response":  sample.response,
             "reference": sample.reference,
             "label": sample.label,
-            "task_type": sample.task_type.value if sample.task_type else None,
-            "split": sample.split.value if sample.split else None,
+            "task_type": sample. task_type. value if sample.task_type else None,
+            "split":  sample.split.value if sample.split else None,
         }
         
-        # Include hallucination spans if available (RAGTruth format)
+        # Include hallucination spans if available
         if sample.metadata.get("hallucination_spans"):
             sample_data["labels"] = [
                 {
@@ -137,7 +148,7 @@ def save_answers(samples: List[Sample], output_path: Path) -> None:
 
 
 def save_metadata(samples: List[Sample], features_list: List[ExtractedFeatures], output_path: Path) -> None:
-    """Save extraction metadata including hallucination token label statistics."""
+    """Save extraction metadata."""
     # 按 task_type 统计
     by_task = {}
     for s in samples:
@@ -150,6 +161,18 @@ def save_metadata(samples: List[Sample], features_list: List[ExtractedFeatures],
         elif s.label == 0:
             by_task[task]["negative"] += 1
     
+    # 按 split 统计
+    by_split = {}
+    for s in samples:
+        split = s.split.value if s.split else "none"
+        if split not in by_split:
+            by_split[split] = {"total":  0, "positive": 0, "negative": 0}
+        by_split[split]["total"] += 1
+        if s.label == 1:
+            by_split[split]["positive"] += 1
+        elif s.label == 0:
+            by_split[split]["negative"] += 1
+    
     # Count samples with token-level hallucination labels
     n_with_token_labels = sum(1 for f in features_list if f.hallucination_labels is not None)
     n_with_token_spans = sum(1 for f in features_list if f.hallucination_token_spans)
@@ -157,13 +180,14 @@ def save_metadata(samples: List[Sample], features_list: List[ExtractedFeatures],
     metadata = {
         "n_samples": len(samples),
         "n_features": len(features_list),
-        "n_positive": sum(1 for s in samples if s.label == 1),
+        "n_positive":  sum(1 for s in samples if s. label == 1),
         "n_negative": sum(1 for s in samples if s.label == 0),
-        "n_with_token_labels": n_with_token_labels,
+        "n_with_token_labels":  n_with_token_labels,
         "n_with_token_spans": n_with_token_spans,
         "by_task_type": by_task,
+        "by_split": by_split,
         "sample_ids": [s.id for s in samples],
-        "prompt_lengths": [f.prompt_len for f in features_list],
+        "prompt_lengths":  [f.prompt_len for f in features_list],
         "response_lengths": [f.response_len for f in features_list],
     }
     
@@ -180,7 +204,7 @@ def main(cfg: DictConfig) -> None:
     setup_logging(level=logging.INFO)
     set_seed(cfg.seed)
     
-    logger.info("=" * 60)
+    logger. info("=" * 60)
     logger.info("Generate Activations")
     logger.info("=" * 60)
     logger.info(f"Config:\n{OmegaConf.to_yaml(cfg)}")
@@ -191,33 +215,41 @@ def main(cfg: DictConfig) -> None:
     logger.info(f"Output directory: {output_dir}")
     
     # Save config
-    config_path = output_dir / "config.yaml"
+    config_path = output_dir / "config. yaml"
     OmegaConf.save(cfg, config_path)
     
-    # Build dataset config
-    dataset_dict = OmegaConf.to_container(cfg.dataset, resolve=True)
-    # 处理 task_types
-    if dataset_dict.get('task_types') == 'null' or dataset_dict.get('task_types') is None:
-        dataset_dict['task_types'] = None  # None 表示所有类型
+    # Try to load pre-split samples first
+    samples = load_split_samples(cfg)
     
-    dataset_config = DatasetConfig(**dataset_dict)
-    model_config = ModelConfig(**OmegaConf.to_container(cfg.model, resolve=True))
-    features_config = FeaturesConfig(**OmegaConf.to_container(cfg.features, resolve=True))
+    if samples is None:
+        # Build dataset config and load from original source
+        dataset_dict = OmegaConf.to_container(cfg.dataset, resolve=True)
+        if dataset_dict. get('task_types') == 'null' or dataset_dict. get('task_types') is None:
+            dataset_dict['task_types'] = None
+        
+        dataset_config = DatasetConfig(**dataset_dict)
+        
+        logger.info(f"Loading dataset:  {dataset_config. name}")
+        logger.info(f"Task types filter: {dataset_config.task_types}")
+        
+        dataset = get_dataset(config=dataset_config)
+        samples = dataset.load(max_samples=dataset_config.max_samples)
     
-    # Load dataset
-    logger.info(f"Loading dataset: {dataset_config.name}")
-    logger.info(f"Task types filter: {dataset_config.task_types}")
-    
-    dataset = get_dataset(config=dataset_config)
-    samples = dataset.load(max_samples=dataset_config.max_samples)
     logger.info(f"Loaded {len(samples)} samples")
     
     # 按 task_type 统计
     task_counts = {}
     for s in samples:
-        task = s.task_type.value if s.task_type else "unknown"
-        task_counts[task] = task_counts.get(task, 0) + 1
+        task = s.task_type.value if s. task_type else "unknown"
+        task_counts[task] = task_counts. get(task, 0) + 1
     logger.info(f"Samples by task type: {task_counts}")
+    
+    # 按 split 统计
+    split_counts = {}
+    for s in samples: 
+        split = s.split.value if s.split else "none"
+        split_counts[split] = split_counts. get(split, 0) + 1
+    logger.info(f"Samples by split: {split_counts}")
     
     # Count labels
     n_pos = sum(1 for s in samples if s.label == 1)
@@ -226,15 +258,17 @@ def main(cfg: DictConfig) -> None:
     logger.info(f"Labels: {n_pos} positive, {n_neg} negative, {n_unknown} unknown")
     
     # Load model
+    model_config = ModelConfig(**OmegaConf.to_container(cfg. model, resolve=True))
     logger.info(f"Loading model: {model_config.name}")
     model = get_model(model_config)
-    logger.info(f"Model loaded: {model.num_layers} layers, {model.num_heads} heads")
+    logger.info(f"Model loaded: {model. num_layers} layers, {model.num_heads} heads")
     
     # Create extractor
+    features_config = FeaturesConfig(**OmegaConf.to_container(cfg.features, resolve=True))
     extractor = create_extractor(model, features_config)
     
     # Extract features
-    logger.info("Extracting features...")
+    logger. info("Extracting features...")
     features_list = extractor.extract_batch(samples, show_progress=True)
     logger.info(f"Extracted features for {len(features_list)} samples")
     
@@ -243,7 +277,7 @@ def main(cfg: DictConfig) -> None:
     features_dir.mkdir(parents=True, exist_ok=True)
     save_features_lapeigvals_style(features_list, features_dir)
     
-    # Save as pickle
+    # Save as pickle (includes samples with split info)
     pickle_path = output_dir / "features.pkl"
     with open(pickle_path, "wb") as f:
         pickle.dump({
@@ -257,7 +291,7 @@ def main(cfg: DictConfig) -> None:
     save_answers(samples, output_dir / "answers.json")
     
     # Save labels
-    labels = torch.tensor([s.label if s.label is not None else -1 for s in samples])
+    labels = torch.tensor([s. label if s.label is not None else -1 for s in samples])
     torch.save(labels, output_dir / "labels.pt")
     
     # Save metadata
@@ -266,7 +300,7 @@ def main(cfg: DictConfig) -> None:
     # Cleanup
     unload_all_models()
     
-    logger.info("=" * 60)
+    logger. info("=" * 60)
     logger.info("Done!")
     logger.info("=" * 60)
 

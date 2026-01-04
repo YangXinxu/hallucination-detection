@@ -1,18 +1,24 @@
 name: ragtruth
-path: /share/home/tm902089733300000/a903202310/lys/data/RAGTruth/dataset
-cls_path: src.data.ragtruth.RAGTruthDataset
+path: data/RAGTruth
+cls_path: src.data.ragtruth. RAGTruthDataset
 
 # RAGTruth specific settings
 splits:
   - test
   - train
-task_types: null  # null means all types: QA, Summary, Data2txt
+task_types:  null  # null means all types:  QA, Summary, Data2txt
 max_samples: null
-exclude_quality:
+exclude_quality: 
   - incorrect_refusal
   - truncated
 
 # For feature extraction
-max_answer_tokens: 512
+max_answer_tokens:  512
 target_column_name: response
 test_split_name: test
+
+# Train/test split ratio (for datasets without split information)
+# RAGTruth already has splits, so this is only used if force_split=True
+# train_ratio: 0.9
+split_seed: null  # If null, uses global seed
+force_split: false

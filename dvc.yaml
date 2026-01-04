@@ -16,31 +16,52 @@ vars:
 
 stages:
   # ===========================================================================
+  # Stage 0: 数据集拆分 (Split Dataset) - 可选预处理步骤
+  # ===========================================================================
+  # 对没有 split 字段的数据集进行 train/test 拆分
+  # 如果数据集已有 split 字段，此步骤会跳过（除非 force_split=True）
+  split_dataset:
+    matrix: 
+      dataset: ${datasets}
+    cmd: >-
+      python scripts/split_dataset.py
+      dataset. name=${item.dataset. name}
+      seed=${seed}
+    deps:
+      - scripts/split_dataset.py
+      - src/data/
+      - data/RAGTruth/
+    params:
+      - seed
+    outs: 
+      - outputs/split_data/${item.dataset.name}/: 
+          persist: true
+
+  # ===========================================================================
   # Stage 1: 特征提取 (Generate Activations)
   # ===========================================================================
   # 对每个 (dataset, model) 组合提取特征
   generate_activations: 
     matrix: 
       dataset: ${datasets}
-      model: ${models}
+      model:  ${models}
     cmd: >-
       python scripts/generate_activations.py
       dataset.name=${item.dataset. name}
-      dataset.task_types=${item.dataset.task_types}
-      dataset.splits=${item.dataset. splits}
       model=${item.model. name}
-      features. mode=${features.mode}
+      features.mode=${features.mode}
       seed=${seed}
     deps:
       - scripts/generate_activations.py
       - src/
       - config/
+      - outputs/split_data/${item.dataset.name}/
     params: 
       - features.mode
       - seed
     outs:
-      - outputs/features/${item. dataset.name}/${item.model.name}/: 
-          persist: true
+      - outputs/features/${item.dataset. name}/${item.model.name}/:
+          persist:  true
 
   # ===========================================================================
   # Stage 2: 训练探测器 (Train Probe)
@@ -54,8 +75,7 @@ stages:
     cmd: >-
       python scripts/train_probe. py
       dataset. name=${item.dataset.name}
-      dataset.task_types=${item.dataset. task_types}
-      model=${item.model. name}
+      model=${item.model.name}
       method=${item.method}
       seed=${seed}
     deps: 
@@ -67,7 +87,7 @@ stages:
       - cv_folds
     outs:
       # 输出到 probe 子目录，避免与 evaluate 的输出重叠
-      - outputs/models/${item. dataset.name}/${item.model.name}/${item.method}/seed_${seed}/probe/: 
+      - outputs/models/${item.dataset. name}/${item. model.name}/${item.method}/seed_${seed}/probe/: 
           persist: true
 
   # ===========================================================================
@@ -78,37 +98,36 @@ stages:
       dataset: ${datasets}
       model: ${models}
       method: ${methods}
-    cmd:  >-
+    cmd: >-
       python scripts/evaluate.py
-      dataset.name=${item.dataset. name}
-      dataset.task_types=${item.dataset.task_types}
+      dataset.name=${item.dataset.name}
       model=${item.model.name}
       method=${item.method}
       seed=${seed}
-    deps:
+    deps: 
       - scripts/evaluate.py
       # 依赖 train_probe 输出的 probe 子目录
       - outputs/models/${item.dataset. name}/${item. model.name}/${item.method}/seed_${seed}/probe/
-      - outputs/features/${item. dataset.name}/${item.model.name}/
-    params: 
+      - outputs/features/${item.dataset.name}/${item.model.name}/
+    params:
       - seed
     metrics:
       - outputs/models/${item.dataset. name}/${item. model.name}/${item.method}/seed_${seed}/eval_results.json:
           cache: false
-    plots: 
-      - outputs/models/${item.dataset. name}/${item. model.name}/${item.method}/seed_${seed}/roc_curve.json:
+    plots:
+      - outputs/models/${item. dataset.name}/${item.model.name}/${item.method}/seed_${seed}/roc_curve.json:
           cache:  false
           x:  fpr
-          y: tpr
+          y:  tpr
 
   # ===========================================================================
   # Stage 4: 汇总结果 (Aggregate Results)
   # ===========================================================================
-  aggregate:
+  aggregate: 
     cmd: python scripts/aggregate_results.py
     deps:
       - scripts/aggregate_results. py
       - outputs/models/
     metrics:
       - outputs/results/summary. json:
-          cache:  false
+          cache: false

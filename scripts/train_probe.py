@@ -15,7 +15,7 @@ PROJECT_ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
 from src.core import (
-    MethodConfig, ExtractedFeatures,
+    MethodConfig, ExtractedFeatures, SplitType,
     set_seed, setup_logging,
 )
 from src.methods import create_method
@@ -25,15 +25,15 @@ logger = logging.getLogger(__name__)
 
 def get_model_short_name(cfg: DictConfig) -> str:
     """Get short name for model."""
-    if hasattr(cfg.model, 'short_name') and cfg.model. short_name: 
+    if hasattr(cfg. model, 'short_name') and cfg.model.short_name:
         return cfg.model.short_name
     return cfg.model.name. split("/")[-1]
 
 
-def find_features_dir(cfg: DictConfig) -> Path:
+def find_features_dir(cfg:  DictConfig) -> Path:
     """Find the features directory based on config."""
     base_dir = Path(cfg.features_dir)
-    dataset_name = cfg. dataset.name
+    dataset_name = cfg.dataset. name
     
     # 处理 task_types
     task_types = cfg.dataset.get('task_types', None)
@@ -76,19 +76,24 @@ def split_by_dataset_split(
     features_list:  List[ExtractedFeatures],
     samples: list
 ) -> tuple:
-    """Split features by dataset split (train/test)."""
+    """Split features by dataset split (train/test).
+    
+    Samples should already have split field set by split_dataset.py
+    """
     train_features = []
     train_labels = []
     test_features = []
     test_labels = []
     
     for feat, sample in zip(features_list, samples):
-        if sample. split and sample.split.value == "train": 
-            train_features. append(feat)
-            train_labels. append(feat.label)
-        else:  # test or validation
+        label = feat.label if feat.label is not None else (sample.label if sample. label is not None else 0)
+        
+        if sample.split and sample.split == SplitType. TRAIN:
+            train_features.append(feat)
+            train_labels.append(label)
+        else:  # test or validation or None
             test_features.append(feat)
-            test_labels.append(feat. label)
+            test_labels.append(label)
     
     return train_features, train_labels, test_features, test_labels
 
@@ -96,7 +101,7 @@ def split_by_dataset_split(
 def build_output_dir(cfg: DictConfig) -> Path:
     """Build output directory for trained model."""
     base_dir = Path(cfg.models_dir)
-    dataset_name = cfg. dataset.name
+    dataset_name = cfg.dataset.name
     
     task_types = cfg. dataset.get('task_types', None)
     if task_types is None or task_types == 'null':
@@ -109,7 +114,8 @@ def build_output_dir(cfg: DictConfig) -> Path:
     model_name = get_model_short_name(cfg)
     method_name = cfg. method.name
     
-    output_dir = base_dir / f"{dataset_name}_{task_suffix}" / model_name / method_name / f"seed_{cfg.seed}" / "probe"
+    # 添加 probe 子目录，避免与 evaluate 输出路径重叠
+    output_dir = base_dir / f"{dataset_name}_{task_suffix}" / model_name / method_name / f"seed_{cfg. seed}" / "probe"
     return output_dir
 
 
@@ -118,9 +124,9 @@ def main(cfg: DictConfig) -> None:
     """Main entry point for training."""
     
     setup_logging(level=logging.INFO)
-    set_seed(cfg. seed)
+    set_seed(cfg.seed)
     
-    logger.info("=" * 60)
+    logger. info("=" * 60)
     logger.info("Train Probe")
     logger.info("=" * 60)
     logger.info(f"Method: {cfg.method.name}")
@@ -151,7 +157,7 @@ def main(cfg: DictConfig) -> None:
     if len(train_features) == 0:
         logger.warning("No train split found, using all data for training")
         train_features = features_list
-        train_labels = [f.label for f in features_list]
+        train_labels = [f.label if f.label is not None else 0 for f in features_list]
     
     n_pos = sum(1 for l in train_labels if l == 1)
     n_neg = sum(1 for l in train_labels if l == 0)
@@ -168,7 +174,7 @@ def main(cfg: DictConfig) -> None:
     logger.info("Training...")
     try:
         metrics = method.fit(train_features, train_labels, cv=True)
-    except Exception as e:
+    except Exception as e: 
         logger.error(f"Training failed: {e}")
         import traceback
         traceback.print_exc()
@@ -194,7 +200,7 @@ def main(cfg: DictConfig) -> None:
     # Save config
     OmegaConf.save(cfg, output_dir / "config.yaml")
     
-    logger. info("=" * 60)
+    logger.info("=" * 60)
     logger.info("Done!")
     logger.info("=" * 60)
 
