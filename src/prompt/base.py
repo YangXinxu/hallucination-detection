@@ -48,14 +48,14 @@ class PromptTemplate:
         """Format template with given arguments."""
         return self.template.format(**kwargs)
     
-    def to_messages(self, **kwargs) -> List[ChatMessage]: 
+    def to_messages(self, **kwargs) -> List[ChatMessage]:
         """Convert to chat messages format."""
         messages = []
         
         if self.system_message:
-            messages.append(ChatMessage(role="system", content=self. system_message))
+            messages.append(ChatMessage(role="system", content=self.system_message))
         
-        for example in self.few_shot_examples: 
+        for example in self.few_shot_examples:
             messages.append(ChatMessage(role="user", content=example["question"]))
             messages.append(ChatMessage(role="assistant", content=example["answer"]))
         

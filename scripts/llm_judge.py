@@ -46,24 +46,24 @@ from src.features import needs_llm_judge_for_spans
 logger = logging.getLogger(__name__)
 
 
-def find_output_dir(cfg:  DictConfig) -> Path:
+def find_output_dir(cfg: DictConfig) -> Path:
     """Find/create output directory for judge results."""
     base_dir = Path(cfg.results_dir) / "llm_judge"
-    dataset_name = cfg. dataset.name
-    llm_name = cfg.llm_api.model. replace("/", "_")
+    dataset_name = cfg.dataset.name
+    llm_name = cfg.llm_api.model.replace("/", "_")
     
-    output_dir = base_dir / dataset_name / llm_name / f"seed_{cfg. seed}"
+    output_dir = base_dir / dataset_name / llm_name / f"seed_{cfg.seed}"
     return output_dir
 
 
 def get_api_key(cfg: DictConfig) -> str:
     """Get API key from environment."""
     env_var = cfg.llm_api.api_key_env
-    api_key = os. environ.get(env_var, "")
+    api_key = os.environ.get(env_var, "")
     
     if not api_key:
         raise ValueError(
-            f"API key not found.  Please set {env_var} environment variable."
+            f"API key not found. Please set {env_var} environment variable."
         )
     
     return api_key

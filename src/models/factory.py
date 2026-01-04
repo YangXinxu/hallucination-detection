@@ -1,4 +1,4 @@
-"""Model factory for loading and managing models. 
+"""Model factory for loading and managing models.
 
 Provides unified interface for model loading following lapeigvals pattern.
 """
@@ -10,32 +10,32 @@ import logging
 import torch
 
 from src.core import ModelConfig
-from src.core. utils import import_class_from_path
-from . loader import LoadedModel, load_model, ModelManager, get_model_manager
+from src.core.utils import import_class_from_path
+from .loader import LoadedModel, load_model, ModelManager, get_model_manager
 
 logger = logging.getLogger(__name__)
 
 
-def get_model(config: ModelConfig, device: Optional[str] = None) -> LoadedModel: 
+def get_model(config: ModelConfig, device: Optional[str] = None) -> LoadedModel:
     """Get model instance from config.
     
-    Uses global model manager for caching. 
+    Uses global model manager for caching.
     
     Args:
-        config:  Model configuration
+        config: Model configuration
         device: Override device
         
-    Returns: 
+    Returns:
         LoadedModel instance
     """
     manager = get_model_manager()
-    return manager. get(config, device)
+    return manager.get(config, device)
 
 
-def create_model(config:  ModelConfig, device:  Optional[str] = None) -> LoadedModel:
+def create_model(config: ModelConfig, device: Optional[str] = None) -> LoadedModel:
     """Create new model instance (no caching).
     
-    Args: 
+    Args:
         config: Model configuration
         device: Override device
         
@@ -45,7 +45,7 @@ def create_model(config:  ModelConfig, device:  Optional[str] = None) -> LoadedM
     return load_model(config, device)
 
 
-def get_model_from_hydra(cfg) -> LoadedModel: 
+def get_model_from_hydra(cfg) -> LoadedModel:
     """Get model from Hydra config.
     
     Args:
@@ -84,7 +84,7 @@ def get_model_info(config: ModelConfig) -> Dict[str, Any]:
     Args:
         config: Model configuration
         
-    Returns: 
+    Returns:
         Dict with model info
     """
     from transformers import AutoConfig
@@ -104,9 +104,9 @@ def get_model_info(config: ModelConfig) -> Dict[str, Any]:
             "model_type": getattr(model_config, "model_type", None),
         }
     except Exception as e:
-        logger.warning(f"Could not get model info:  {e}")
+        logger.warning(f"Could not get model info: {e}")
         return {
-            "name":  config.name,
+            "name": config.name,
             "n_layers": config.n_layers,
             "n_heads": config.n_heads,
             "hidden_size": config.hidden_size,
