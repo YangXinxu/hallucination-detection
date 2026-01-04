@@ -49,12 +49,12 @@ def get_prompt_template(name: str) -> Optional[PromptTemplate]:
     """Get prompt template by name. 
     
     Args:
-        name:  Template name
+        name: Template name
         
     Returns:
         PromptTemplate or None if not found
     """
-    return _TEMPLATES.get(name. lower())
+    return _TEMPLATES.get(name.lower())
 
 
 def register_template(name: str, template: PromptTemplate) -> None:

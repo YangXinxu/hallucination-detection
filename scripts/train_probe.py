@@ -25,19 +25,19 @@ logger = logging.getLogger(__name__)
 
 def get_model_short_name(cfg: DictConfig) -> str:
     """Get short name for model."""
-    if hasattr(cfg. model, 'short_name') and cfg.model.short_name:
+    if hasattr(cfg.model, 'short_name') and cfg.model.short_name:
         return cfg.model.short_name
-    return cfg.model.name. split("/")[-1]
+    return cfg.model.name.split("/")[-1]
 
 
 def find_features_dir(cfg: DictConfig) -> Path:
     """Find the features directory based on config."""
     base_dir = Path(cfg.features_dir)
-    dataset_name = cfg.dataset. name
+    dataset_name = cfg.dataset.name
     
     # 处理 task_types
     task_types = cfg.dataset.get('task_types', None)
-    if task_types is None or task_types == 'null': 
+    if task_types is None or task_types == 'null':
         task_suffix = "all"
     elif isinstance(task_types, list):
         task_suffix = "_".join(task_types)
@@ -45,11 +45,11 @@ def find_features_dir(cfg: DictConfig) -> Path:
         task_suffix = str(task_types)
     
     model_name = get_model_short_name(cfg)
-    seed_str = f"seed_{cfg. seed}"
+    seed_str = f"seed_{cfg.seed}"
     
     features_dir = base_dir / f"{dataset_name}_{task_suffix}" / model_name / seed_str
     
-    if not features_dir. exists():
+    if not features_dir.exists():
         # 尝试查找
         pattern_dir = base_dir / f"{dataset_name}_{task_suffix}" / model_name
         if pattern_dir.exists():
@@ -61,12 +61,12 @@ def find_features_dir(cfg: DictConfig) -> Path:
     return features_dir
 
 
-def load_features(features_path: Path) -> tuple: 
+def load_features(features_path: Path) -> tuple:
     """Load features from pickle file."""
     with open(features_path, "rb") as f:
         data = pickle.load(f)
     
-    features_list = data. get("features", [])
+    features_list = data.get("features", [])
     samples = data.get("samples", [])
     
     return features_list, samples
@@ -83,9 +83,9 @@ def split_by_dataset_split(
     test_labels = []
     
     for feat, sample in zip(features_list, samples):
-        if sample.split and sample.split.value == "train": 
-            train_features. append(feat)
-            train_labels. append(feat.label)
+        if sample.split and sample.split.value == "train":
+            train_features.append(feat)
+            train_labels.append(feat.label)
         else:  # test or validation
             test_features.append(feat)
             test_labels.append(feat.label)
@@ -93,13 +93,13 @@ def split_by_dataset_split(
     return train_features, train_labels, test_features, test_labels
 
 
-def build_output_dir(cfg:  DictConfig) -> Path:
+def build_output_dir(cfg: DictConfig) -> Path:
     """Build output directory for trained model."""
     base_dir = Path(cfg.models_dir)
     dataset_name = cfg.dataset.name
     
-    task_types = cfg. dataset.get('task_types', None)
-    if task_types is None or task_types == 'null': 
+    task_types = cfg.dataset.get('task_types', None)
+    if task_types is None or task_types == 'null':
         task_suffix = "all"
     elif isinstance(task_types, list):
         task_suffix = "_".join(task_types)
@@ -107,7 +107,7 @@ def build_output_dir(cfg:  DictConfig) -> Path:
         task_suffix = str(task_types)
     
     model_name = get_model_short_name(cfg)
-    method_name = cfg. method.name
+    method_name = cfg.method.name
     
     output_dir = base_dir / f"{dataset_name}_{task_suffix}" / model_name / method_name / f"seed_{cfg.seed}"
     return output_dir
@@ -120,7 +120,7 @@ def main(cfg: DictConfig) -> None:
     setup_logging(level=logging.INFO)
     set_seed(cfg.seed)
     
-    logger. info("=" * 60)
+    logger.info("=" * 60)
     logger.info("Train Probe")
     logger.info("=" * 60)
     logger.info(f"Method: {cfg.method.name}")
@@ -130,8 +130,8 @@ def main(cfg: DictConfig) -> None:
     features_dir = find_features_dir(cfg)
     features_path = features_dir / "features.pkl"
     
-    if not features_path. exists():
-        logger.error(f"Features not found:  {features_path}")
+    if not features_path.exists():
+        logger.error(f"Features not found: {features_path}")
         logger.error("Please run generate_activations.py first")
         return
     
@@ -145,7 +145,7 @@ def main(cfg: DictConfig) -> None:
     train_features, train_labels, test_features, test_labels = split_by_dataset_split(
         features_list, samples
     )
-    logger.info(f"Train:  {len(train_features)}, Test: {len(test_features)}")
+    logger.info(f"Train: {len(train_features)}, Test: {len(test_features)}")
     
     # 如果没有 split 信息，使用所有数据训练
     if len(train_features) == 0:
@@ -162,13 +162,13 @@ def main(cfg: DictConfig) -> None:
     
     # Create method
     logger.info(f"Creating method: {method_config.name}")
-    method = create_method(method_config. name, config=method_config)
+    method = create_method(method_config.name, config=method_config)
     
     # Train
     logger.info("Training...")
     try:
         metrics = method.fit(train_features, train_labels, cv=True)
-    except Exception as e: 
+    except Exception as e:
         logger.error(f"Training failed: {e}")
         import traceback
         traceback.print_exc()
@@ -182,7 +182,7 @@ def main(cfg: DictConfig) -> None:
     output_dir.mkdir(parents=True, exist_ok=True)
     
     # Save model
-    model_path = output_dir / "model. pkl"
+    model_path = output_dir / "model.pkl"
     method.save(model_path)
     logger.info(f"Model saved to {model_path}")
     

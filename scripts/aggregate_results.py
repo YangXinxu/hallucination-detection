@@ -34,40 +34,40 @@ def main():
     for eval_file in models_dir.rglob("eval_results.json"):
         try:
             with open(eval_file) as f:
-                eval_data = json. load(f)
+                eval_data = json.load(f)
             
             # Extract info
             config = eval_data.get("config", {})
-            metrics = eval_data. get("metrics", {})
+            metrics = eval_data.get("metrics", {})
             by_task = eval_data.get("by_task_type", {})
             
             experiment = {
                 "dataset": config.get("dataset", "unknown"),
-                "model":  config.get("model", "unknown"),
+                "model": config.get("model", "unknown"),
                 "method": config.get("method", "unknown"),
-                "seed": config. get("seed", 0),
+                "seed": config.get("seed", 0),
                 "auroc": metrics.get("auroc", 0),
                 "auprc": metrics.get("auprc", 0),
                 "f1": metrics.get("f1", 0),
                 "n_samples": eval_data.get("n_samples", 0),
-                "by_task_type":  by_task,
+                "by_task_type": by_task,
                 "path": str(eval_file),
             }
             
-            all_results["experiments"]. append(experiment)
+            all_results["experiments"].append(experiment)
             all_results["by_method"][experiment["method"]].append(experiment)
             all_results["by_dataset"][experiment["dataset"]].append(experiment)
             
             # Aggregate by task type
-            for task, task_metrics in by_task. items():
+            for task, task_metrics in by_task.items():
                 all_results["by_task_type"][task].append({
                     "method": experiment["method"],
                     "model": experiment["model"],
                     **task_metrics
                 })
             
-        except Exception as e: 
-            logger.warning(f"Failed to load {eval_file}:  {e}")
+        except Exception as e:
+            logger.warning(f"Failed to load {eval_file}: {e}")
     
     # Compute summary statistics
     summary = {
@@ -76,7 +76,7 @@ def main():
         "task_types": {},
     }
     
-    for method, exps in all_results["by_method"]. items():
+    for method, exps in all_results["by_method"].items():
         if exps:
             aurocs = [e["auroc"] for e in exps]
             summary["methods"][method] = {
@@ -106,7 +106,7 @@ def main():
     print("\n" + "=" * 80)
     print("Results Summary")
     print("=" * 80)
-    print(f"Total experiments:  {summary['total_experiments']}")
+    print(f"Total experiments: {summary['total_experiments']}")
     
     print("\nBy Method:")
     print("-" * 40)
@@ -116,10 +116,10 @@ def main():
     print("\nBy Task Type:")
     print("-" * 40)
     for task, stats in summary["task_types"].items():
-        print(f"  {task}:  Mean AUROC = {stats['mean_auroc']:.4f} (n={stats['n_experiments']})")
+        print(f"  {task}: Mean AUROC = {stats['mean_auroc']:.4f} (n={stats['n_experiments']})")
     
     print("=" * 80)
 
 
-if __name__ == "__main__": 
+if __name__ == "__main__":
     main()

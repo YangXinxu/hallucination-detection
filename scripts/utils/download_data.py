@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Download datasets for hallucination detection. 
+"""Download datasets for hallucination detection.
 
 Usage:
     python scripts/utils/download_data.py --dataset truthfulqa --output ./data
@@ -11,7 +11,7 @@ import logging
 from pathlib import Path
 
 # Add project root to path
-PROJECT_ROOT = Path(__file__).parent.parent. parent
+PROJECT_ROOT = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
 from src.core import setup_logging
@@ -31,7 +31,7 @@ def download_truthfulqa(output_dir: Path) -> bool:
         output_path.mkdir(parents=True, exist_ok=True)
         
         import json
-        for split in dataset: 
+        for split in dataset:
             split_path = output_path / f"{split}.json"
             data = [dict(item) for item in dataset[split]]
             with open(split_path, "w", encoding="utf-8") as f:
@@ -41,12 +41,12 @@ def download_truthfulqa(output_dir: Path) -> bool:
         logger.info(f"TruthfulQA downloaded to {output_path}")
         return True
         
-    except Exception as e: 
+    except Exception as e:
         logger.error(f"Failed to download TruthfulQA: {e}")
         return False
 
 
-def download_halueval(output_dir:  Path) -> bool:
+def download_halueval(output_dir: Path) -> bool:
     """Download HaluEval dataset."""
     try:
         from datasets import load_dataset
@@ -54,15 +54,15 @@ def download_halueval(output_dir:  Path) -> bool:
         logger.info("Downloading HaluEval from HuggingFace...")
         
         output_path = output_dir / "HaluEval"
-        output_path. mkdir(parents=True, exist_ok=True)
+        output_path.mkdir(parents=True, exist_ok=True)
         
         import json
         for subtask in ["qa", "summarization", "dialogue"]:
             try:
                 dataset = load_dataset("pminervini/HaluEval", subtask)
                 
-                for split in dataset: 
-                    split_path = output_path / f"{subtask}_{split}. json"
+                for split in dataset:
+                    split_path = output_path / f"{subtask}_{split}.json"
                     data = [dict(item) for item in dataset[split]]
                     with open(split_path, "w", encoding="utf-8") as f:
                         json.dump(data, f, indent=2, ensure_ascii=False)
@@ -74,7 +74,7 @@ def download_halueval(output_dir:  Path) -> bool:
         logger.info(f"HaluEval downloaded to {output_path}")
         return True
         
-    except Exception as e: 
+    except Exception as e:
         logger.error(f"Failed to download HaluEval: {e}")
         return False
 
@@ -86,9 +86,9 @@ def download_ragtruth(output_dir: Path) -> bool:
     logger.info("=" * 60)
     logger.info("RAGTruth requires manual download:")
     logger.info("")
-    logger.info("1. Visit:  https://github.com/ParticleMedia/RAGTruth")
+    logger.info("1. Visit: https://github.com/ParticleMedia/RAGTruth")
     logger.info("2. Clone the repository")
-    logger.info("3. Copy the data files to:  " + str(output_dir / "RAGTruth"))
+    logger.info("3. Copy the data files to: " + str(output_dir / "RAGTruth"))
     logger.info("")
     logger.info("Expected structure:")
     logger.info("  RAGTruth/")
@@ -101,7 +101,7 @@ def download_ragtruth(output_dir: Path) -> bool:
 DATASETS = {
     "truthfulqa": download_truthfulqa,
     "halueval": download_halueval,
-    "ragtruth":  download_ragtruth,
+    "ragtruth": download_ragtruth,
 }
 
 
@@ -140,20 +140,20 @@ def main():
     if args.all:
         datasets_to_download = list(DATASETS.keys())
     elif args.dataset:
-        datasets_to_download = [args. dataset]
+        datasets_to_download = [args.dataset]
     else:
         logger.error("Please specify --dataset or --all")
         return
     
     for dataset_name in datasets_to_download:
         logger.info(f"\n{'=' * 60}")
-        logger.info(f"Downloading:  {dataset_name}")
+        logger.info(f"Downloading: {dataset_name}")
         logger.info(f"{'=' * 60}")
         
         download_func = DATASETS[dataset_name]
         success = download_func(output_dir)
         
-        if success: 
+        if success:
             logger.info(f"✓ {dataset_name} downloaded successfully")
         else:
             logger.warning(f"✗ {dataset_name} download incomplete")

@@ -1,18 +1,18 @@
 name: ragtruth
 path: data/RAGTruth
-cls_path: src.data.ragtruth. RAGTruthDataset
+cls_path: src.data.ragtruth.RAGTruthDataset
 
 # RAGTruth specific settings
 splits:
   - test
   - train
-task_types: null  # null means all types:  QA, Summary, Data2txt
+task_types: null  # null means all types: QA, Summary, Data2txt
 max_samples: null
-exclude_quality: 
+exclude_quality:
   - incorrect_refusal
   - truncated
 
 # For feature extraction
 max_answer_tokens: 512
 target_column_name: response
-test_split_name:  test
+test_split_name: test
