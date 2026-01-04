@@ -15,7 +15,7 @@ seed: 42
 
 # Directory paths
 base_dir: .
-data_dir: ${base_dir}/data
+data_dir: /share/home/tm902089733300000/a903202310/lys/data/RAGTruth/dataset
 features_dir: ${base_dir}/outputs/features
 models_dir: ${base_dir}/outputs/models
 results_dir: ${base_dir}/outputs/results

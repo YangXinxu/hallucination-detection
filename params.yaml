@@ -9,15 +9,15 @@
 # -----------------------------------------------------------------------------
 # RAGTruth 子数据集列表 (task_types)
 # 设置为 null 表示运行所有类型，或指定列表如 [QA, Summary, Data2txt]
-datasets:
+datasets: 
   - name: ragtruth
-    task_types: null  # null = 所有类型 (QA, Summary, Data2txt)
-    splits: [train, test]
+    task_types: "QA,Summary,Data2txt"  # null = 所有类型 (QA, Summary, Data2txt)
+    splits:  "train,test"
 
-# 如果需要分别运行每个 task_type，使用以下配置:
-# datasets:
-#   - name: ragtruth
-#     task_types: [QA]
+# 如果需要分别运行每个 task_type，使用以下配置: 
+# datasets: 
+#   - name:  ragtruth
+#     task_types:  [QA]
 #     splits: [train, test]
 #   - name: ragtruth
 #     task_types: [Summary]
@@ -33,32 +33,32 @@ models:
   - name: mistral_7b
     path: /share/home/tm902089733300000/a903202310/lys/models/Mistral-7B-Instruct-v0.3
 
-# 多模型示例:
-# models:
-#   - name: mistral_7b
-#     path: path/to/mistral
-#   - name: llama3_8b
+# 多模型示例: 
+# models: 
+#   - name:  mistral_7b
+#     path:  path/to/mistral
+#   - name:  llama3_8b
 #     path: path/to/llama
 
 # -----------------------------------------------------------------------------
 # 检测方法配置
 # -----------------------------------------------------------------------------
-# 要运行所有方法，取消下面的注释并注释掉单方法配置
 methods:
   - lapeigvals
   - entropy
   - lookback_lens
   - hypergraph
   - ensemble
-
-# 单方法运行示例:
-# methods:
+# 多方法示例: 
+# methods: 
 #   - lapeigvals
+#   - entropy
+#   - lookback_lens
 
 # -----------------------------------------------------------------------------
 # 特征提取配置
 # -----------------------------------------------------------------------------
-features:
+features: 
   mode: teacher_forcing  # teacher_forcing or generation
   attention_layers: all
   max_length: 4096

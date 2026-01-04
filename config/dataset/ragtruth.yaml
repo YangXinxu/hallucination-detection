@@ -1,5 +1,5 @@
 name: ragtruth
-path: data/RAGTruth
+path: /share/home/tm902089733300000/a903202310/lys/data/RAGTruth/dataset
 cls_path: src.data.ragtruth.RAGTruthDataset
 
 # RAGTruth specific settings
