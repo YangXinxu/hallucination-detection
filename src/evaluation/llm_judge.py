@@ -354,7 +354,10 @@ class LLMJudge:
         Args:
             response: Raw LLM response
             sample_id: Sample identifier
-            sample_response: Original sample response text (for span validation)
+            sample_response: Original sample response text (for span validation).
+                If provided, character positions in hallucination spans will be
+                validated against this text. If empty, positions are used as-is
+                from the LLM response.
             
         Returns:
             JudgeResult instance
@@ -381,13 +384,28 @@ class LLMJudge:
                     end = span_data.get("end", 0)
                     text = span_data.get("text", "")
                     
-                    # Validate/fix positions if we have the original response
-                    if sample_response and text:
-                        # Try to find the exact text in response
-                        found_idx = sample_response.find(text)
-                        if found_idx >= 0:
-                            start = found_idx
-                            end = found_idx + len(text)
+                    # Validate positions if we have the original response
+                    if sample_response and text and start is not None and end is not None:
+                        # Verify the text matches at the specified position
+                        try:
+                            start_int = int(start)
+                            end_int = int(end)
+                            if 0 <= start_int < end_int <= len(sample_response):
+                                actual_text = sample_response[start_int:end_int]
+                                # If positions are wrong, try to find text in response
+                                # (fallback, may not be accurate for duplicate text)
+                                if actual_text != text:
+                                    logger.debug(f"Span position mismatch, attempting correction")
+                                    # Only correct if text appears once in response
+                                    if sample_response.count(text) == 1:
+                                        found_idx = sample_response.find(text)
+                                        if found_idx >= 0:
+                                            start_int = found_idx
+                                            end_int = found_idx + len(text)
+                                start = start_int
+                                end = end_int
+                        except (ValueError, TypeError):
+                            pass
                     
                     parsed_spans.append(HallucinationSpan(
                         start=int(start) if start else 0,

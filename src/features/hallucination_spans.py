@@ -76,8 +76,8 @@ def calculate_hallucination_token_spans(
             # Token covers chars [s, e) (e exclusive)
             if token_start is None and s <= char_start < e:
                 token_start = idx
-            # Find token_end such that it covers up to char_end
-            if token_start is not None and s < char_end <= e:
+            # Find token_end - use s <= char_end to handle boundary cases
+            if token_start is not None and s <= char_end <= e:
                 token_end = idx + 1  # exclusive
                 break
         
@@ -204,9 +204,9 @@ def calculate_hallucination_labels_for_input(
 def needs_llm_judge_for_spans(sample_metadata: Dict[str, Any]) -> bool:
     """Check if a sample needs LLM judge to generate hallucination spans.
     
-    Returns True if:
-    - Sample is labeled as hallucinated (label=1) but has no span annotations
-    - Sample has no label information at all
+    Returns True if the sample has no span annotations.
+    This is typically needed for non-RAGTruth datasets that don't include
+    character-level hallucination annotations.
     
     Args:
         sample_metadata: Sample.metadata dict
@@ -215,8 +215,4 @@ def needs_llm_judge_for_spans(sample_metadata: Dict[str, Any]) -> bool:
         True if LLM judge is needed to annotate spans
     """
     spans = sample_metadata.get("hallucination_spans", [])
-    n_hallucinations = sample_metadata.get("n_hallucinations", len(spans))
-    
-    # If labeled as hallucinated but no spans, need judge
-    # Note: This is typically for non-RAGTruth datasets
-    return n_hallucinations == 0 or len(spans) == 0
+    return len(spans) == 0
