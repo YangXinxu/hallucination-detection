@@ -200,7 +200,9 @@ class LLMAPIConfig(BaseModel, extra="forbid"):
     provider: str = "qwen"
     model: str = "qwen-plus"
     api_key_env: str = "DASHSCOPE_API_KEY"
-    base_url:  Optional[str] = None
+    api_key: Optional[str] = None  # Can be set directly or loaded from env
+    base_url: Optional[str] = None
+    system_prompt: Optional[str] = None
     
     temperature: float = 0.0
     max_tokens: int = 1024

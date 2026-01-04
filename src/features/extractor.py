@@ -7,6 +7,7 @@ Key features:
 - Laplacian diagonal computation
 - Hidden states pooling
 - Token probability extraction
+- Token-level hallucination labels (from RAGTruth spans or LLM judge)
 """
 from __future__ import annotations
 from typing import Optional, List, Dict, Any, Tuple
@@ -19,6 +20,11 @@ from src.core import (
     parse_layers, Progress, FeatureError,
 )
 from src.models import LoadedModel
+from .hallucination_spans import (
+    extract_hallucination_info_from_sample,
+    calculate_hallucination_token_spans,
+    get_token_hallucination_labels,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -374,6 +380,29 @@ class FeatureExtractor:
                         features.perplexity = torch.exp(
                             -torch.log(features.token_probs.clamp(min=1e-10)).mean()
                         ).item()
+        
+        # Calculate token-level hallucination labels from sample metadata
+        # This works with RAGTruth format where spans are stored in metadata
+        try:
+            span_labels, has_spans = extract_hallucination_info_from_sample(sample.metadata)
+            if has_spans and sample.label == 1:
+                # Calculate token-level spans
+                token_spans = calculate_hallucination_token_spans(
+                    labels=span_labels,
+                    prompt_text=sample.prompt,
+                    response_text=sample.response,
+                    tokenizer=self.model.tokenizer,
+                    end_inclusive=False,
+                )
+                
+                # Generate token-level labels
+                seq_len = input_ids.size(1)
+                hallucination_labels = get_token_hallucination_labels(seq_len, token_spans)
+                
+                features.hallucination_labels = hallucination_labels
+                features.hallucination_token_spans = token_spans
+        except Exception as e:
+            logger.debug(f"Could not calculate hallucination token labels for {sample.id}: {e}")
         
         return features
     

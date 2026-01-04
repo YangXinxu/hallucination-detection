@@ -2,7 +2,7 @@
 
 from .types import (
     TaskType, SplitType, ExtractionMode, StorageMode,
-    Sample, ExtractedFeatures, Prediction, JudgeResult, EvalMetrics,
+    Sample, ExtractedFeatures, Prediction, HallucinationSpan, JudgeResult, EvalMetrics,
 )
 
 from .registry import (
@@ -25,7 +25,7 @@ from .utils import (
 __all__ = [
     # Types
     "TaskType", "SplitType", "ExtractionMode", "StorageMode",
-    "Sample", "ExtractedFeatures", "Prediction", "JudgeResult", "EvalMetrics",
+    "Sample", "ExtractedFeatures", "Prediction", "HallucinationSpan", "JudgeResult", "EvalMetrics",
     # Registry
     "Registry", "DATASETS", "METHODS", "MODELS", "EXTRACTORS", "LLM_APIS", "list_available",
     # Config

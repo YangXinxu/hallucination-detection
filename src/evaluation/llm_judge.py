@@ -16,7 +16,7 @@ import json
 import re
 from abc import ABC, abstractmethod
 
-from src.core import Sample, JudgeResult, LLMAPIConfig, Progress, APIError
+from src.core import Sample, JudgeResult, HallucinationSpan, LLMAPIConfig, Progress, APIError
 
 logger = logging.getLogger(__name__)
 
@@ -101,11 +101,13 @@ DETAILED_PROMPT = """You are an expert evaluator for detecting and analyzing hal
 {response}
 
 ## Instructions
-Analyze the response thoroughly and provide:
-1. Overall hallucination assessment
-2. Specific hallucinated spans (if any)
-3. Type of hallucination for each span
-4. Confidence level
+Analyze the response thoroughly and identify ALL hallucinated spans with their EXACT character positions.
+
+For each hallucinated span:
+1. Copy the EXACT text that is hallucinated
+2. Find the START character position (0-indexed from the beginning of the response)
+3. Find the END character position (exclusive, like Python slice)
+4. Classify the type of hallucination
 
 Respond with a JSON object:
 {{
@@ -113,10 +115,21 @@ Respond with a JSON object:
     "score": 1-5,
     "confidence": 0.0-1.0,
     "hallucination_spans": [
-        {{"text": "hallucinated text", "type": "intrinsic/extrinsic/fabrication", "explanation": "why"}}
+        {{
+            "text": "exact hallucinated text",
+            "start": <start_char_position>,
+            "end": <end_char_position>,
+            "label_type": "intrinsic/extrinsic/fabrication/misattribution",
+            "explanation": "why this is hallucinated"
+        }}
     ],
     "reasoning": "detailed analysis"
 }}
+
+IMPORTANT: 
+- Character positions must be accurate - "start" is inclusive, "end" is exclusive
+- The "text" field must be the EXACT substring from response[start:end]
+- If no hallucinations found, set "hallucinated": false and "hallucination_spans": []
 """
 
 
@@ -335,57 +348,102 @@ class LLMJudge:
             response=sample.response,
         )
     
-    def _parse_response(self, response: str, sample_id: str) -> JudgeResult:
+    def _parse_response(self, response: str, sample_id: str, sample_response: str = "") -> JudgeResult:
         """Parse LLM response into JudgeResult.
         
         Args:
             response: Raw LLM response
             sample_id: Sample identifier
+            sample_response: Original sample response text (for span validation)
             
         Returns:
             JudgeResult instance
         """
         # Try to extract JSON from response
         try:
-            # Look for JSON in response
-            json_match = re.search(r'\{[^{}]*\}', response, re.DOTALL)
+            # Look for JSON in response - handle nested objects
+            json_match = re.search(r'\{[\s\S]*\}', response, re.DOTALL)
             if json_match:
-                data = json.loads(json_match.group())
+                # Try to parse the matched JSON
+                json_str = json_match.group()
+                data = json.loads(json_str)
             else:
                 # Try parsing entire response as JSON
                 data = json.loads(response)
             
+            # Parse hallucination spans into HallucinationSpan objects
+            raw_spans = data.get("hallucination_spans", [])
+            parsed_spans = []
+            for span_data in raw_spans:
+                if isinstance(span_data, dict):
+                    # Get character positions
+                    start = span_data.get("start", 0)
+                    end = span_data.get("end", 0)
+                    text = span_data.get("text", "")
+                    
+                    # Validate/fix positions if we have the original response
+                    if sample_response and text:
+                        # Try to find the exact text in response
+                        found_idx = sample_response.find(text)
+                        if found_idx >= 0:
+                            start = found_idx
+                            end = found_idx + len(text)
+                    
+                    parsed_spans.append(HallucinationSpan(
+                        start=int(start) if start else 0,
+                        end=int(end) if end else 0,
+                        text=str(text),
+                        label_type=str(span_data.get("label_type", span_data.get("type", ""))),
+                        explanation=str(span_data.get("explanation", "")),
+                    ))
+            
             # Extract fields based on mode
             if self.mode == JudgeMode.BINARY:
+                hallucinated = data.get("hallucinated", False)
                 return JudgeResult(
                     sample_id=sample_id,
-                    hallucinated=data.get("hallucinated", False),
-                    confidence=data.get("confidence", 0.5),
-                    reasoning=data.get("reason", ""),
+                    label=1 if hallucinated else 0,
+                    confidence=float(data.get("confidence", 0.5)),
+                    explanation=str(data.get("reason", "")),
+                    raw_response=response,
+                    hallucination_spans=parsed_spans,
                 )
             
             elif self.mode == JudgeMode.SCORE:
-                score = data.get("score", 3)
+                score = int(data.get("score", 3))
+                hallucinated = score <= 2
                 return JudgeResult(
                     sample_id=sample_id,
-                    hallucinated=score <= 2,
-                    score=score,
-                    confidence=data.get("confidence", 0.5),
-                    reasoning=data.get("reason", ""),
-                    metadata={"issues": data.get("issues", [])},
+                    label=1 if hallucinated else 0,
+                    confidence=float(data.get("confidence", 0.5)),
+                    explanation=str(data.get("reason", "")),
+                    raw_response=response,
+                    hallucination_spans=parsed_spans,
                 )
             
             elif self.mode == JudgeMode.DETAILED:
+                hallucinated = data.get("hallucinated", False)
                 return JudgeResult(
                     sample_id=sample_id,
-                    hallucinated=data.get("hallucinated", False),
-                    score=data.get("score", 3),
-                    confidence=data.get("confidence", 0.5),
-                    reasoning=data.get("reasoning", ""),
-                    hallucination_spans=data.get("hallucination_spans", []),
+                    label=1 if hallucinated else 0,
+                    confidence=float(data.get("confidence", 0.5)),
+                    explanation=str(data.get("reasoning", "")),
+                    raw_response=response,
+                    hallucination_spans=parsed_spans,
                 )
             
-        except (json.JSONDecodeError, KeyError) as e:
+            # Default case
+            hallucinated = data.get("hallucinated", False)
+            return JudgeResult(
+                sample_id=sample_id,
+                label=1 if hallucinated else 0,
+                confidence=float(data.get("confidence", 0.5)),
+                explanation=str(data.get("reason", data.get("reasoning", ""))),
+                raw_response=response,
+                hallucination_spans=parsed_spans,
+            )
+            
+        except (json.JSONDecodeError, KeyError, ValueError) as e:
             logger.warning(f"Failed to parse LLM response for {sample_id}: {e}")
             
             # Fallback: try to detect keywords
@@ -395,9 +453,11 @@ class LLMJudge:
             
             return JudgeResult(
                 sample_id=sample_id,
-                hallucinated=hallucinated,
+                label=1 if hallucinated else 0,
                 confidence=0.3,  # Low confidence for fallback
-                reasoning=response[:500],  # Keep first 500 chars as reasoning
+                explanation=response[:500],  # Keep first 500 chars as reasoning
+                raw_response=response,
+                hallucination_spans=[],
             )
     
     def judge(self, sample: Sample, retries: int = 3) -> JudgeResult:
@@ -415,7 +475,7 @@ class LLMJudge:
         for attempt in range(retries):
             try:
                 response = self.client.call(prompt)
-                return self._parse_response(response, sample.id)
+                return self._parse_response(response, sample.id, sample.response)
             
             except APIError as e:
                 logger.warning(f"API error on attempt {attempt + 1}: {e}")
@@ -424,12 +484,21 @@ class LLMJudge:
                 else:
                     return JudgeResult(
                         sample_id=sample.id,
-                        hallucinated=False,
+                        label=0,
                         confidence=0.0,
-                        reasoning=f"API error: {e}",
+                        explanation=f"API error: {e}",
+                        raw_response="",
+                        hallucination_spans=[],
                     )
         
-        return JudgeResult(sample_id=sample.id, hallucinated=False, confidence=0.0)
+        return JudgeResult(
+            sample_id=sample.id,
+            label=0,
+            confidence=0.0,
+            explanation="",
+            raw_response="",
+            hallucination_spans=[],
+        )
     
     def judge_batch(
         self,
@@ -459,7 +528,7 @@ class LLMJudge:
                 results.append(result)
         
         logger.info(f"Judged {len(results)} samples, "
-                   f"{sum(r.hallucinated for r in results)} hallucinated")
+                   f"{sum(r.label == 1 for r in results)} hallucinated")
         
         return results
 
@@ -502,7 +571,8 @@ def evaluate_with_judge(
     Returns:
         Dictionary with results and metrics
     """
-    from .metrics import compute_metrics, Prediction
+    from .metrics import compute_metrics
+    from src.core import Prediction
     
     # Get judge results
     judge_results = judge.judge_batch(samples)
@@ -511,8 +581,8 @@ def evaluate_with_judge(
     predictions = [
         Prediction(
             sample_id=r.sample_id,
-            score=r.confidence if r.hallucinated else 1 - r.confidence,
-            label=1 if r.hallucinated else 0,
+            score=r.confidence if r.label == 1 else 1 - r.confidence,
+            label=r.label,
             confidence=r.confidence,
         )
         for r in judge_results
@@ -521,8 +591,8 @@ def evaluate_with_judge(
     result = {
         "judge_results": judge_results,
         "predictions": predictions,
-        "n_hallucinated": sum(r.hallucinated for r in judge_results),
-        "n_clean": sum(not r.hallucinated for r in judge_results),
+        "n_hallucinated": sum(r.label == 1 for r in judge_results),
+        "n_clean": sum(r.label == 0 for r in judge_results),
     }
     
     # Compute metrics if ground truth available
