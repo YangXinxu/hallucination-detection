@@ -1,15 +1,12 @@
-# Ensemble Method Configuration
 name: ensemble
+cls_path: src.methods. ensemble.EnsembleMethod
 
 classifier: logistic
+cv_folds: 5
+random_seed: ${seed}
 
 params:
-  mode: voting  # voting, stacking, concat
-  methods:
+  base_methods: 
     - lapeigvals
-    - lookback_lens
     - entropy
-  weights: null  # null for equal weights
-
-cv_folds: 5
-random_seed: 42
+  ensemble_type: stacking  # voting, stacking, concat

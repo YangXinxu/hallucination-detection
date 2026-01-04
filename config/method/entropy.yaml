@@ -1,12 +1,11 @@
-# Entropy Method Configuration
 name: entropy
+cls_path: src.methods. entropy.EntropyMethod
 
 classifier: logistic
+cv_folds: 5
+random_seed: ${seed}
 
-params:
+params: 
   use_token_entropy: true
   use_attention_entropy: true
-  use_perplexity: true
-
-cv_folds: 5
-random_seed: 42
+  aggregation:  mean

@@ -1,10 +1,11 @@
-# HaluEval Dataset Configuration
-name: halueval
-path: ${oc.env:DATA_DIR,./data}/HaluEval
+name: halueval_qa
+path: data/HaluEval/qa_data. json
+cls_path: src.data. halueval. HaluEvalQADataset
 
-# Subtask: qa, summarization, dialogue
-subtask: qa
-
-# Sampling
+splits:  null
+task_types:  null
 max_samples: null
-random_seed: 42
+
+max_answer_tokens: 256
+target_column_name: hallucinated_answer
+test_split_name: null

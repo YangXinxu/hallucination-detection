@@ -1,0 +1,21 @@
+# Feature extraction mode
+mode: teacher_forcing  # teacher_forcing or generation
+stored_features: attention_diags  # What to store
+
+# Attention features
+attention_enabled: true
+attention_layers: all  # all, last, first, last_n: 4, [0,1,2,3]
+attention_storage: full  # diagonal or full
+
+# Hidden states features
+hidden_states_enabled: true
+hidden_states_layers: last_n:4
+hidden_states_pooling: last_token  # last_token, mean, max, first_token
+
+# Token probability features
+token_probs_enabled: true
+token_probs_top_k: 10
+
+# Length limits
+max_length:  4096
+batch_size: 1

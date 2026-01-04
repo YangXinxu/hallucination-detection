@@ -1,12 +1,44 @@
-"""Data loading module for hallucination detection."""
+"""Data loading module for hallucination detection. 
 
-from .base import BaseDataset, JsonDataset, JsonlDataset, create_dataset, load_samples
+Provides: 
+- Dataset classes for various benchmarks
+- Factory functions for dataset creation
+- Formatters for prompt preparation
+"""
+
+from .base import BaseDataset, JsonDataset, JsonlDataset
+from . factory import get_dataset, prepare_dataset, load_dataset_with_labels
+from . formatter import (
+    DatasetFormatter,
+    QaFormatter,
+    RAGTruthFormatter,
+    HaluEvalFormatter,
+    TruthfulQAFormatter,
+    get_formatter,
+)
 from .ragtruth import RAGTruthDataset
-from .truthfulqa import TruthfulQADataset, download_truthfulqa
-from .halueval import HaluEvalDataset, HaluEvalQADataset, HaluEvalSumDataset, HaluEvalDialogueDataset
+from .truthfulqa import TruthfulQADataset
+from .halueval import HaluEvalDataset, HaluEvalQADataset
 
 __all__ = [
-    "BaseDataset", "JsonDataset", "JsonlDataset", "create_dataset", "load_samples",
-    "RAGTruthDataset", "TruthfulQADataset", "download_truthfulqa",
-    "HaluEvalDataset", "HaluEvalQADataset", "HaluEvalSumDataset", "HaluEvalDialogueDataset",
+    # Base
+    "BaseDataset",
+    "JsonDataset",
+    "JsonlDataset",
+    # Factory
+    "get_dataset",
+    "prepare_dataset",
+    "load_dataset_with_labels",
+    # Formatters
+    "DatasetFormatter",
+    "QaFormatter",
+    "RAGTruthFormatter",
+    "HaluEvalFormatter",
+    "TruthfulQAFormatter",
+    "get_formatter",
+    # Datasets
+    "RAGTruthDataset",
+    "TruthfulQADataset",
+    "HaluEvalDataset",
+    "HaluEvalQADataset",
 ]

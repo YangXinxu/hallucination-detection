@@ -1,12 +1,13 @@
-# TruthfulQA Dataset Configuration
 name: truthfulqa
-path: ${oc.env:DATA_DIR,./data}/TruthfulQA
+path: null  # Will be downloaded from HuggingFace
+subset: generation
+cls_path: src. data.truthfulqa.TruthfulQADataset
 
-# Source: huggingface or local
-source: huggingface
-hf_name: truthful_qa
-hf_subset: generation
-
-# Sampling
+splits:
+  - validation
+task_types:  null
 max_samples: null
-random_seed: 42
+
+max_answer_tokens:  128
+target_column_name: answer
+test_split_name:  validation

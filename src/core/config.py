@@ -1,16 +1,14 @@
-"""Configuration management for hallucination detection framework.
+"""Configuration management using Pydantic models. 
 
-Design principles:
-- Flat, simple configuration structures
-- Layer selection unified via parse_layers() function
-- All modes (all/first/last/first_n/last_n) converted to specific indices
+Design aligned with lapeigvals for compatibility. 
+All configs use Pydantic BaseModel for validation and serialization. 
 """
 from __future__ import annotations
-from dataclasses import dataclass, field
-from typing import List, Optional, Dict, Any, Union
 from pathlib import Path
-from omegaconf import DictConfig, OmegaConf
+from typing import List, Optional, Dict, Any, Union, Literal
 import re
+
+from pydantic import BaseModel, Field, model_validator
 
 from .types import ExtractionMode, StorageMode, TaskType
 
@@ -19,22 +17,19 @@ from .types import ExtractionMode, StorageMode, TaskType
 # Layer Selection - Unified parsing
 # ==============================================================================
 
-def parse_layers(spec: Union[str, List[int], None], n_layers: int) -> List[int]:
-    """Parse layer specification to concrete indices.
-    
-    This is THE function for layer selection. All modes are handled here,
-    downstream code only deals with List[int].
+def parse_layers(spec: Union[str, List[int], None], n_layers: int) -> List[int]: 
+    """Parse layer specification to concrete indices. 
     
     Args:
-        spec: Layer specification, can be:
-            - "all": All layers [0, 1, ..., n_layers-1]
+        spec:  Layer specification, can be:
+            - "all": All layers [0, 1, .. ., n_layers-1]
             - "first": First layer only [0]
             - "last": Last layer only [n_layers-1]
-            - "first_n:k": First k layers [0, 1, ..., k-1]
-            - "last_n:k": Last k layers [n_layers-k, ..., n_layers-1]
+            - "first_n: k": First k layers [0, 1, ..., k-1]
+            - "last_n: k": Last k layers [n_layers-k, .. ., n_layers-1]
             - [0, 4, 8, ...]: Explicit list of indices
             - "[0, 4, 8]": String representation of list
-            - None: Defaults to "all"
+            - None:  Defaults to "all"
         n_layers: Total number of layers in model
         
     Returns:
@@ -43,35 +38,31 @@ def parse_layers(spec: Union[str, List[int], None], n_layers: int) -> List[int]:
     if spec is None:
         spec = "all"
     
-    # Already a list
     if isinstance(spec, (list, tuple)):
         return [i for i in spec if 0 <= i < n_layers]
     
     spec = str(spec).strip().lower()
     
-    # Keyword modes
     if spec == "all":
         return list(range(n_layers))
     if spec == "first":
         return [0]
-    if spec == "last":
+    if spec == "last": 
         return [n_layers - 1]
     
-    # first_n:k or last_n:k
     match = re.match(r"(first|last)_n[:\s]*(\d+)", spec)
     if match:
-        mode, n = match.groups()
+        mode, n = match. groups()
         n = int(n)
         if mode == "first":
             return list(range(min(n, n_layers)))
-        else:
+        else: 
             return list(range(max(0, n_layers - n), n_layers))
     
-    # Try parsing as list string "[0, 1, 2]" or "0,1,2"
     try:
         cleaned = spec.strip("[]() ")
-        if cleaned:
-            indices = [int(x.strip()) for x in cleaned.split(",")]
+        if cleaned: 
+            indices = [int(x. strip()) for x in cleaned.split(",")]
             return [i for i in indices if 0 <= i < n_layers]
     except ValueError:
         pass
@@ -80,153 +71,189 @@ def parse_layers(spec: Union[str, List[int], None], n_layers: int) -> List[int]:
 
 
 # ==============================================================================
-# Configuration Dataclasses
+# Pydantic Configuration Models
 # ==============================================================================
 
-@dataclass
-class DatasetConfig:
+class DatasetConfig(BaseModel, extra="forbid"):
     """Dataset configuration."""
-    name: str = "ragtruth"
-    path: str = "./data/RAGTruth"
-    splits: List[str] = field(default_factory=lambda: ["test"])
+    name: str
+    path: Optional[Path] = None
+    cls_path: Optional[str] = None
+    subset: Optional[str] = None
+    
+    splits: Optional[List[str]] = None
     task_types: Optional[List[str]] = None
     max_samples: Optional[int] = None
-    settings: Dict[str, Any] = field(default_factory=dict)
+    exclude_quality: Optional[List[str]] = None
+    
+    max_answer_tokens:  int = 256
+    target_column_name: str = "answer"
+    test_split_name: Optional[str] = None
 
 
-@dataclass
-class ModelConfig:
+class ModelConfig(BaseModel, extra="forbid"):
     """Model configuration."""
-    name: str = "Qwen/Qwen2.5-7B-Instruct"
-    n_layers: int = 28
-    n_heads: int = 28
-    hidden_size: int = 3584
+    name: str
+    short_name: Optional[str] = None
+    
+    n_layers: int = 32
+    n_heads: int = 32
+    hidden_size: int = 4096
+    context_size: int = 8192
+    
     dtype: str = "bfloat16"
     device_map: str = "auto"
     trust_remote_code: bool = True
-    attn_implementation: str = "eager"  # MUST be "eager" for attention extraction
+    attn_implementation: str = "eager"
     load_in_4bit: bool = False
     load_in_8bit: bool = False
+    
+    tokenizer_name:  Optional[str] = None
+    tokenizer_padding_side:  Literal["left", "right"] = "left"
+    
+    quantization: Optional[Dict[str, Any]] = None
+    
+    @model_validator(mode="after")
+    def set_defaults(self) -> "ModelConfig":
+        if self.tokenizer_name is None:
+            self. tokenizer_name = self.name
+        if self.short_name is None: 
+            self.short_name = self. name.split("/")[-1].replace("-", "_").lower()
+        return self
 
 
-@dataclass
-class FeaturesConfig:
+class PromptConfig(BaseModel, extra="forbid"):
+    """Base prompt configuration."""
+    name: str = "default"
+    cls_path: Optional[str] = None
+    content: str = "{question}"
+
+
+class QaPromptConfig(PromptConfig, extra="forbid"):
+    """QA prompt configuration."""
+    question_key: str = "question"
+    context_key: Optional[str] = None
+    num_few_shot_examples:  Optional[int] = None
+
+
+class RAGTruthPromptConfig(PromptConfig, extra="forbid"):
+    """RAGTruth specific prompt configuration."""
+    use_original_prompt: bool = True
+    question_key: str = "prompt"
+    context_key: Optional[str] = None
+
+
+class FeaturesConfig(BaseModel, extra="forbid"):
     """Feature extraction configuration."""
     mode: str = "teacher_forcing"
-    max_length: int = 4096
+    stored_features: str = "attention_diags"
+    
     attention_enabled: bool = True
     attention_layers: Union[str, List[int]] = "all"
-    attention_storage: str = "diagonal"
+    attention_storage:  str = "diagonal"
+    
     hidden_states_enabled: bool = True
-    hidden_states_layers: Union[str, List[int]] = "last_n:4"
-    hidden_states_pooling: str = "last_token"
-    token_probs_enabled: bool = True
+    hidden_states_layers:  Optional[Union[str, List[int]]] = "last_n:4"
+    hidden_states_pooling: Optional[str] = "last_token"
+    
+    token_probs_enabled:  bool = True
     token_probs_top_k: int = 10
     
+    max_length: int = 4096
+    batch_size: int = 1
+    
     def get_attention_layers(self, n_layers: int) -> List[int]:
+        if not self.attention_enabled:
+            return []
         return parse_layers(self.attention_layers, n_layers)
     
-    def get_hidden_layers(self, n_layers: int) -> List[int]:
+    def get_hidden_layers(self, n_layers: int) -> List[int]: 
+        if not self. hidden_states_enabled:
+            return []
         return parse_layers(self.hidden_states_layers, n_layers)
 
 
-@dataclass
-class GenerationConfig:
+class GenerationConfig(BaseModel, extra="forbid"):
     """Generation configuration."""
-    max_new_tokens: int = 256
-    temperature: float = 1.0
-    top_p: float = 1.0
+    max_new_tokens:  int = 256
+    temperature: float = 0.7
+    top_p:  float = 0.9
     top_k: int = 50
     do_sample: bool = True
     repetition_penalty: float = 1.0
 
 
-@dataclass
-class MethodConfig:
+class MethodConfig(BaseModel, extra="forbid"):
     """Detection method configuration."""
-    name: str = "lapeigvals"
+    name: str
+    cls_path:  Optional[str] = None
+    
     classifier: str = "logistic"
     cv_folds: int = 5
-    val_split: float = 0.2
     random_seed: int = 42
-    params: Dict[str, Any] = field(default_factory=dict)
+    
+    params: Dict[str, Any] = Field(default_factory=dict)
 
 
-@dataclass
-class LLMAPIConfig:
+class LLMAPIConfig(BaseModel, extra="forbid"):
     """LLM API configuration for judge."""
     provider: str = "qwen"
     model: str = "qwen-plus"
     api_key_env: str = "DASHSCOPE_API_KEY"
-    base_url: Optional[str] = None
+    base_url:  Optional[str] = None
+    
     temperature: float = 0.0
     max_tokens: int = 1024
     timeout: int = 60
     max_retries: int = 3
+    rate_limit: int = 60
 
 
-@dataclass
-class Config:
+class Config(BaseModel):
     """Main configuration container."""
-    dataset: DatasetConfig = field(default_factory=DatasetConfig)
-    model: ModelConfig = field(default_factory=ModelConfig)
-    features: FeaturesConfig = field(default_factory=FeaturesConfig)
-    generation: GenerationConfig = field(default_factory=GenerationConfig)
-    method: MethodConfig = field(default_factory=MethodConfig)
-    llm_api: LLMAPIConfig = field(default_factory=LLMAPIConfig)
+    dataset: DatasetConfig
+    model: ModelConfig
+    prompt: Union[PromptConfig, QaPromptConfig, RAGTruthPromptConfig] = Field(
+        default_factory=PromptConfig
+    )
+    features: FeaturesConfig = Field(default_factory=FeaturesConfig)
+    generation_config: GenerationConfig = Field(default_factory=GenerationConfig)
+    method: MethodConfig = Field(default_factory=lambda: MethodConfig(name="lapeigvals"))
+    llm_api: LLMAPIConfig = Field(default_factory=LLMAPIConfig)
+    
     seed: int = 42
     device: str = "cuda"
-    output_dir: str = "./outputs"
+    output_dir: str = "outputs"
+    results_dir:  str = "outputs/results"
+    features_dir: str = "outputs/features"
+    models_dir: str = "outputs/models"
     
     def get_output_path(self) -> Path:
-        model_name = self.model.name.replace("/", "_")
-        return Path(self.output_dir) / self.dataset.name / model_name / f"seed_{self.seed}"
+        """Get output path based on config."""
+        return Path(self.results_dir) / self.dataset.name / self. model.short_name
 
 
 # ==============================================================================
 # Config Loading Utilities
 # ==============================================================================
 
-def load_config(cfg: DictConfig) -> Config:
+def load_config_from_hydra(cfg) -> Config:
     """Convert Hydra DictConfig to typed Config."""
-    cfg_dict = OmegaConf.to_container(cfg, resolve=True)
-    return _dict_to_config(cfg_dict)
+    from omegaconf import OmegaConf
+    cfg_dict = OmegaConf. to_container(cfg, resolve=True)
+    return Config(**cfg_dict)
 
 
-def _dict_to_config(d: Dict[str, Any]) -> Config:
-    return Config(
-        dataset=_dict_to_dataclass(DatasetConfig, d.get("dataset", {})),
-        model=_dict_to_dataclass(ModelConfig, d.get("model", {})),
-        features=_dict_to_dataclass(FeaturesConfig, d.get("features", {})),
-        generation=_dict_to_dataclass(GenerationConfig, d.get("generation", {})),
-        method=_dict_to_dataclass(MethodConfig, d.get("method", {})),
-        llm_api=_dict_to_dataclass(LLMAPIConfig, d.get("llm_api", {})),
-        seed=d.get("seed", 42),
-        device=d.get("device", "cuda"),
-        output_dir=d.get("output_dir", "./outputs"),
-    )
-
-
-def _dict_to_dataclass(cls, d: Dict[str, Any]):
-    if not d:
-        return cls()
-    valid_fields = {f.name for f in cls.__dataclass_fields__.values()}
-    filtered = {k: v for k, v in d.items() if k in valid_fields}
-    return cls(**filtered)
-
-
-def save_config(cfg: Config, path: Path) -> None:
+def save_config(cfg:  Config, path: Path) -> None:
     """Save config to YAML file."""
     import yaml
-    from dataclasses import asdict
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     with open(path, 'w') as f:
-        yaml.dump(asdict(cfg), f, default_flow_style=False, sort_keys=False)
+        yaml. dump(cfg.model_dump(), f, default_flow_style=False, sort_keys=False)
 
 
-def print_config(cfg: Config) -> None:
+def print_config(cfg:  Config) -> None:
     """Print configuration."""
-    from dataclasses import asdict
     import json
-    print(json.dumps(asdict(cfg), indent=2, default=str))
+    print(json.dumps(cfg.model_dump(), indent=2, default=str))

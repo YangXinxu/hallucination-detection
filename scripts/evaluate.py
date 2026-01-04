@@ -1,106 +1,185 @@
 #!/usr/bin/env python3
-"""Evaluate a trained method on test data.
+"""Evaluate a trained method on test data. 
+
+All parameters are configured via Hydra configuration files. 
 
 Usage:
-    python scripts/evaluate.py \
-        --model ./outputs/model.pkl \
-        --features ./outputs/test_features.pkl \
-        --output ./outputs/evaluation.json
+    # Default config
+    python scripts/evaluate. py
+    
+    # Override method
+    python scripts/evaluate.py method=entropy
+    
+    # Specify threshold
+    python scripts/evaluate.py evaluation. threshold=0.5
 """
-import argparse
 import sys
-import pickle
 import json
+import pickle
 import logging
 from pathlib import Path
+from typing import Dict, Any, List, Optional
 
+import hydra
+from omegaconf import DictConfig, OmegaConf
+
+# Add project root to path
 PROJECT_ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from src.core import setup_logging
-from src.methods import BaseMethod
-from src.evaluation import compute_metrics, find_optimal_threshold, EvaluationResult
+from src.core import (
+    MethodConfig, EvalMetrics, Prediction,
+    set_seed, setup_logging,
+)
+from src.methods import create_method, BaseMethod
+from src.evaluation import compute_metrics, find_optimal_threshold
 
 logger = logging.getLogger(__name__)
 
 
-def parse_args():
-    parser = argparse.ArgumentParser(description="Evaluate detection method")
+def find_model_path(cfg: DictConfig) -> Path:
+    """Find the trained model path based on config."""
+    base_dir = Path(cfg.models_dir)
+    dataset_name = cfg.dataset. name
+    model_name = cfg.model.short_name or cfg.model.name.split("/")[-1]
+    method_name = cfg. method.name
     
-    parser.add_argument("--model", type=str, required=True,
-                       help="Path to trained model")
-    parser.add_argument("--features", type=str, required=True,
-                       help="Path to test features")
-    parser.add_argument("--output", type=str, required=True,
-                       help="Output path for evaluation results")
-    parser.add_argument("--threshold", type=float, default=None,
-                       help="Classification threshold (auto if not specified)")
+    model_dir = base_dir / dataset_name / model_name / method_name / f"seed_{cfg. seed}"
+    model_path = model_dir / "model. pkl"
     
-    return parser.parse_args()
+    return model_path
 
 
-def main():
-    args = parse_args()
+def find_features_path(cfg: DictConfig) -> Path:
+    """Find the features path based on config."""
+    base_dir = Path(cfg.features_dir)
+    dataset_name = cfg.dataset.name
+    model_name = cfg.model.short_name or cfg. model.name.split("/")[-1]
     
+    temp_str = f"temp_{cfg.generation_config.temperature}"
+    prompt_str = cfg.prompt. name
+    seed_str = f"seed_{cfg.seed}"
+    
+    features_dir = base_dir / dataset_name / model_name / f"{temp_str}__{prompt_str}__{seed_str}"
+    features_path = features_dir / "features. pkl"
+    
+    return features_path
+
+
+def load_model(model_path:  Path, method_config: MethodConfig) -> BaseMethod:
+    """Load trained model."""
+    method = create_method(method_config.name, config=method_config)
+    method.load(model_path)
+    return method
+
+
+def load_features(features_path: Path):
+    """Load features from pickle file."""
+    with open(features_path, "rb") as f:
+        data = pickle. load(f)
+    
+    features_list = data.get("features", [])
+    samples = data.get("samples", [])
+    
+    return features_list, samples
+
+
+@hydra.main(version_base=None, config_path="../config", config_name="config")
+def main(cfg: DictConfig) -> None:
+    """Main entry point for evaluation."""
+    
+    # Setup
     setup_logging(level=logging.INFO)
+    set_seed(cfg.seed)
+    
+    logger.info("=" * 60)
+    logger.info("Evaluate")
+    logger.info("=" * 60)
+    
+    # Find paths
+    model_path = find_model_path(cfg)
+    features_path = find_features_path(cfg)
+    
+    if not model_path.exists():
+        logger.error(f"Model not found: {model_path}")
+        logger.error("Please run train_probe.py first")
+        return
+    
+    if not features_path.exists():
+        logger.error(f"Features not found: {features_path}")
+        logger.error("Please run generate_activations.py first")
+        return
+    
+    logger.info(f"Model:  {model_path}")
+    logger.info(f"Features:  {features_path}")
     
     # Load model
-    logger.info(f"Loading model from {args.model}")
-    with open(args.model, "rb") as f:
-        state = pickle.load(f)
-    
-    # Reconstruct method
-    from src.methods.base import BaseMethod
-    method = BaseMethod.__new__(BaseMethod)
-    method.__dict__.update(state)
+    method_config = MethodConfig(**OmegaConf.to_container(cfg.method, resolve=True))
+    method = load_model(model_path, method_config)
+    logger.info(f"Loaded method: {method_config.name}")
     
     # Load features
-    logger.info(f"Loading features from {args.features}")
-    with open(args.features, "rb") as f:
-        data = pickle.load(f)
-    
-    features = data["features"]
-    labels = [f.label for f in features]
-    
-    logger.info(f"Evaluating on {len(features)} samples")
+    features_list, samples = load_features(features_path)
+    labels = [f.label for f in features_list]
+    logger.info(f"Loaded {len(features_list)} samples for evaluation")
     
     # Predict
-    predictions = method.predict_batch(features)
+    logger.info("Predicting...")
+    predictions = method.predict_batch(features_list)
+    logger.info(f"Generated {len(predictions)} predictions")
+    
+    # Get threshold
+    threshold = cfg.get("evaluation", {}).get("threshold", None)
+    if threshold is None:
+        scores = [p.score for p in predictions]
+        threshold, _ = find_optimal_threshold(scores, labels)
+        logger.info(f"Optimal threshold: {threshold:. 4f}")
+    else:
+        logger. info(f"Using specified threshold: {threshold:. 4f}")
     
     # Compute metrics
-    if args.threshold:
-        threshold = args.threshold
-    else:
-        threshold, _ = find_optimal_threshold(predictions, labels)
-        logger.info(f"Optimal threshold: {threshold:.3f}")
+    scores = [p.score for p in predictions]
+    metrics = compute_metrics(scores, labels, threshold=threshold)
     
-    metrics = compute_metrics(predictions, labels, threshold=threshold)
-    
-    logger.info(f"Evaluation Results:")
-    logger.info(f"  AUROC:     {metrics.auroc:.4f}")
+    logger.info("=" * 40)
+    logger.info("Evaluation Results:")
+    logger.info("=" * 40)
+    logger.info(f"  AUROC:      {metrics. auroc:.4f}")
     logger.info(f"  AUPRC:     {metrics.auprc:.4f}")
     logger.info(f"  F1:        {metrics.f1:.4f}")
     logger.info(f"  Precision: {metrics.precision:.4f}")
-    logger.info(f"  Recall:    {metrics.recall:.4f}")
-    logger.info(f"  Accuracy:  {metrics.accuracy:.4f}")
+    logger.info(f"  Recall:    {metrics. recall:.4f}")
+    logger.info(f"  Accuracy:  {metrics. accuracy:.4f}")
+    logger.info(f"  Threshold: {threshold:.4f}")
+    logger.info("=" * 40)
     
     # Save results
-    output_path = Path(args.output)
-    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_dir = model_path.parent
+    results_path = output_dir / "eval_results.json"
     
     results = {
-        "metrics": metrics.to_dict(),
+        "metrics": metrics. to_dict(),
         "threshold": threshold,
+        "n_samples": len(predictions),
         "predictions": [
-            {"sample_id": p.sample_id, "score": p.score, "label": p.label}
-            for p in predictions
+            {
+                "sample_id": p.sample_id,
+                "score": p.score,
+                "predicted_label": 1 if p. score >= threshold else 0,
+                "true_label": labels[i] if i < len(labels) else None,
+            }
+            for i, p in enumerate(predictions)
         ],
     }
     
-    with open(output_path, "w") as f:
+    with open(results_path, "w") as f:
         json.dump(results, f, indent=2)
     
-    logger.info(f"Results saved to {output_path}")
+    logger.info(f"Results saved to {results_path}")
+    
+    logger.info("=" * 60)
+    logger.info("Done!")
+    logger.info("=" * 60)
 
 
 if __name__ == "__main__":
