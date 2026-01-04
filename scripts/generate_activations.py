@@ -163,7 +163,7 @@ def main(cfg: DictConfig) -> None:
     logger.info(f"Output directory: {output_dir}")
     
     # Save config
-    config_path = output_dir / "config. yaml"
+    config_path = output_dir / "config.yaml"
     OmegaConf.save(cfg, config_path)
     logger.info(f"Config saved to {config_path}")
     
@@ -221,7 +221,7 @@ def main(cfg: DictConfig) -> None:
     logger.info(f"Features saved to {pickle_path}")
     
     # Save answers/responses
-    save_answers(samples, output_dir / "answers. json")
+    save_answers(samples, output_dir / "answers.json")
     
     # Save labels
     labels = torch. tensor([s.label if s.label is not None else -1 for s in samples])
@@ -229,7 +229,7 @@ def main(cfg: DictConfig) -> None:
     logger.info(f"Labels saved to {output_dir / 'labels.pt'}")
     
     # Save metadata
-    save_metadata(samples, features_list, output_dir / "metadata. json")
+    save_metadata(samples, features_list, output_dir / "metadata.json")
     
     # Cleanup
     unload_all_models()
