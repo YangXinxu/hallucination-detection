@@ -1,225 +1,142 @@
 # Hallucination Detection Framework
 
-基于 lapeigvals (EMNLP 2025) 的可扩展幻觉检测框架。
+一个可扩展的 LLM 幻觉检测框架，支持多种检测方法和数据集。
 
 ## 🚀 快速开始
 
 ### 安装
 
 ```bash
-# 解压所有部分
-unzip hallucination-detection-part1.zip -d hallucination-detection
-unzip -o hallucination-detection-part2.zip -d hallucination-detection
-unzip -o hallucination-detection-part3.zip -d hallucination-detection
-unzip -o hallucination-detection-part4.zip -d hallucination-detection
-unzip -o hallucination-detection-part5.zip -d hallucination-detection
-
+git clone https://github.com/DwightEd/hallucination-detection. git
 cd hallucination-detection
-
-# 安装依赖
+pip install -e . 
 pip install -r requirements.txt
-
-# 或使用 pip install
-pip install -e .
 ```
 
-### 下载数据
+### 一键运行 (DVC)
 
 ```bash
-# 下载 TruthfulQA
-python scripts/download_data.py --dataset truthfulqa --output ./data
+# 1. 配置参数 (编辑 params.yaml)
+# 默认配置:  RAGTruth 全部类型 + Mistral-7B + LapEigvals
 
-# 下载 HaluEval
-python scripts/download_data.py --dataset halueval --output ./data
+# 2. 运行完整流水线
+dvc repro
 
-# RAGTruth 需要手动下载
-python scripts/download_data.py --dataset ragtruth --output ./data
-```
-
-### 运行实验
-
-```bash
-# 默认配置
-python scripts/run_experiment.py
-
-# 快速测试
-python scripts/run_experiment.py experiment=quick_test
-
-# 完整基准测试
-python scripts/run_experiment.py experiment=full_benchmark
-
-# 自定义参数
-python scripts/run_experiment.py \
-    dataset=truthfulqa \
-    method=ensemble \
-    model=qwen2.5_7b_4bit
+# 3. 查看结果
+dvc metrics show
+cat outputs/results/summary.json
 ```
 
 ## 📁 项目结构
 
 ```
 hallucination-detection/
-├── config/                     # Hydra 配置
-│   ├── dataset/               # 数据集配置
-│   ├── model/                 # 模型配置
-│   ├── method/                # 方法配置
-│   ├── llm_api/               # LLM API 配置
-│   └── experiment/            # 实验配置
-├── src/
-│   ├── core/                  # 核心模块
-│   ├── data/                  # 数据加载
-│   ├── models/                # 模型加载
-│   ├── features/              # 特征提取
-│   ├── methods/               # 检测方法
-│   └── evaluation/            # 评估模块
-├── scripts/                   # 运行脚本
-├── dvc.yaml                   # DVC 流水线
-├── params.yaml                # DVC 参数
-└── requirements.txt           # 依赖
+├── config/
+│   ├── config.yaml          # 主配置文件
+│   ├── dataset/             # 数据集配置
+│   ├── model/               # 模型配置
+│   ├── method/              # 方法配置
+│   └── features/            # 特征提取配置
+├── scripts/
+│   ├── generate_activations.py  # 特征提取
+│   ├── train_probe.py           # 训练
+│   ├── evaluate.py              # 评估
+│   └── aggregate_results.py     # 结果汇总
+├── src/                     # 源代码
+├── params.yaml              # DVC 参数
+├── dvc.yaml                 # DVC 流水线
+└── outputs/                 # 输出目录
+    ├── features/            # 提取的特征
+    ├── models/              # 训练的模型
+    └── results/             # 评估结果
 ```
 
-## 🔧 核心功能
+## ⚙️ 配置说明
 
-### 1. 统一层选择
-
-```python
-from src.core import parse_layers
-
-parse_layers("all", 32)        # [0, 1, ..., 31]
-parse_layers("last_n:4", 32)   # [28, 29, 30, 31]
-parse_layers("first_n:2", 32)  # [0, 1]
-parse_layers([24, 28, 31], 32) # [24, 28, 31]
-```
-
-### 2. 特征提取
-
-```python
-from src.models import load_model
-from src.features import FeatureExtractor
-from src.core import ModelConfig, FeaturesConfig
-
-model = load_model(ModelConfig(
-    name="Qwen/Qwen2.5-7B-Instruct",
-    attn_implementation="eager",  # 必须！
-))
-
-extractor = FeatureExtractor(model, FeaturesConfig(
-    mode="teacher_forcing",
-    attention_layers="last_n:4",
-))
-
-features = extractor.extract(sample)
-# features.attn_diags: [n_layers, n_heads, seq]
-# features.laplacian_diags: [n_layers, n_heads, seq]
-# features.token_probs: [response_len]
-```
-
-### 3. 检测方法
-
-```python
-from src.methods import create_method
-
-# 单一方法
-method = create_method("lapeigvals")
-method.fit(features_list)
-prediction = method.predict(features)
-
-# 集成方法
-method = create_method("auto_ensemble")
-method.fit(features_list)  # 自动调权
-```
-
-### 4. LLM-as-Judge
-
-```python
-from src.evaluation import create_judge
-from src.core import LLMAPIConfig
-
-judge = create_judge(
-    config=LLMAPIConfig(
-        provider="qwen",
-        model="qwen-turbo",
-        api_key="your-key",
-    ),
-    mode="binary",
-)
-
-result = judge.judge(sample)
-```
-
-## 📊 支持的数据集
-
-| 数据集 | 任务类型 | 说明 |
-|--------|---------|------|
-| RAGTruth | QA, Summary, Data2Text | RAG幻觉检测 |
-| TruthfulQA | QA | 真实性评估 |
-| HaluEval | QA, Summary, Dialogue | 综合幻觉评估 |
-
-## 🧪 检测方法
-
-| 方法 | 说明 | 关键特征 |
-|------|------|----------|
-| lapeigvals | Laplacian特征值 | laplacian_diags, attn_diags |
-| lookback_lens | 注意力比率 | attn_diags, attn_entropy |
-| entropy | 熵统计 | token_entropy, attn_entropy |
-| perplexity | 困惑度 | token_probs |
-| ensemble | 组合方法 | voting/stacking/concat |
-| auto_ensemble | 自动加权集成 | 基于CV分数 |
-
-## 🔄 DVC 流水线
-
-```bash
-# 初始化 DVC
-dvc init
-
-# 运行完整流水线
-dvc repro
-
-# 修改参数后重新运行
-dvc repro -f
-
-# 查看指标
-dvc metrics show
-```
-
-## ⚙️ 配置示例
-
-### 模型配置 (config/model/qwen2.5_7b.yaml)
+### params.yaml (DVC 参数)
 
 ```yaml
-name: Qwen/Qwen2.5-7B-Instruct
-attn_implementation: eager  # 必须！
-dtype: bfloat16
-load_in_4bit: false
-device_map: auto
+# 数据集配置
+datasets:
+  - name: ragtruth
+    task_types: null  # null = 所有类型 (QA, Summary, Data2txt)
+    splits: [train, test]
+
+# 模型配置
+models: 
+  - name: mistral_7b
+    path: /path/to/model
+
+# 方法配置
+methods: 
+  - lapeigvals
+
+# 其他
+seed: 42
 ```
 
-### 实验配置 (config/experiment/default.yaml)
+### 运行特定 task_type
 
 ```yaml
-defaults:
-  - /dataset: ragtruth
-  - /model: qwen2.5_7b
-  - /method: lapeigvals
-
-features:
-  attention_layers: "last_n:4"
-  hidden_states_layers: "last_n:4"
-
-evaluation:
-  use_llm_judge: false
+# params.yaml
+datasets:
+  - name: ragtruth
+    task_types:  [QA]  # 只运行 QA
 ```
 
-## 📈 API 支持
+### 运行多个方法
 
-- **Qwen API** (DashScope): `provider: qwen`
-- **OpenAI API**: `provider: openai`
-- **本地 Ollama**: `provider: openai_compatible`
+```yaml
+# params.yaml
+methods:
+  - lapeigvals
+  - entropy
+  - lookback_lens
+```
+
+## 🔧 命令行使用
+
+### 单独运行各阶段
 
 ```bash
-# 设置环境变量
-export DASHSCOPE_API_KEY=your-key
-export OPENAI_API_KEY=your-key
+# 特征提取
+python scripts/generate_activations.py dataset=ragtruth model=mistral_7b
+
+# 训练
+python scripts/train_probe.py dataset=ragtruth method=lapeigvals
+
+# 评估
+python scripts/evaluate.py dataset=ragtruth method=lapeigvals
+```
+
+### Hydra 多重运行
+
+```bash
+# 多个方法
+python scripts/train_probe.py --multirun method=lapeigvals,entropy
+
+# 多个数据集
+python scripts/generate_activations.py --multirun dataset=ragtruth,truthfulqa
+```
+
+## 📊 输出格式
+
+### eval_results.json
+
+```json
+{
+  "metrics": {
+    "auroc": 0.8234,
+    "auprc": 0.7891,
+    "f1": 0.7456
+  },
+  "by_task_type": {
+    "QA": {"auroc": 0.82, "f1": 0.75, "n_samples": 150},
+    "Summary": {"auroc":  0.85, "f1":  0.78, "n_samples": 150},
+    "Data2txt": {"auroc":  0.80, "f1":  0.72, "n_samples":  150}
+  },
+  "n_samples": 450
+}
 ```
 
 ## 📝 License

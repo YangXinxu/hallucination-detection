@@ -6,7 +6,7 @@ cls_path: src.data.ragtruth. RAGTruthDataset
 splits:
   - test
   - train
-task_types:  null  # null means all types:  QA, Summary, Data2txt
+task_types: null  # null means all types:  QA, Summary, Data2txt
 max_samples: null
 exclude_quality: 
   - incorrect_refusal

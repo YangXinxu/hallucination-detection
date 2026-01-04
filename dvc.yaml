@@ -1,58 +1,113 @@
+# =============================================================================
 # DVC Pipeline for Hallucination Detection
-# All parameters are now managed via Hydra configs
-# Usage: dvc repro
+# =============================================================================
+# 
+# 使用方法:
+#   1. 修改 params.yaml 中的参数
+#   2. 运行 `dvc repro` 执行整个流水线
+#   3. 运行 `dvc repro -f` 强制重新执行
+#   4. 运行 `dvc metrics show` 查看所有结果
+#
+# 矩阵式运行:  datasets × models × methods 的所有组合
+# =============================================================================
+
+vars:
+  - params.yaml
 
 stages:
-  # Stage 1: Generate activations (extract features)
+  # ===========================================================================
+  # Stage 1: 特征提取 (Generate Activations)
+  # ===========================================================================
+  # 对每个 (dataset, model) 组合提取特征
   generate_activations: 
-    cmd: python scripts/generate_activations.py
+    matrix:
+      dataset: ${datasets}
+      model: ${models}
+    cmd: >-
+      python scripts/generate_activations.py
+      dataset. name=${item.dataset. name}
+      dataset.task_types=${item.dataset.task_types}
+      dataset.splits=${item.dataset.splits}
+      model=${item.model.name}
+      features.mode=${features.mode}
+      seed=${seed}
     deps:
       - scripts/generate_activations.py
       - src/
       - config/
+      - data/RAGTruth/
     params:
-      - config/config.yaml:
-          - dataset
-          - model
-          - features
-          - seed
+      - features.mode
+      - seed
     outs: 
-      - outputs/features/
+      - outputs/features/${item.dataset.name}/${item.model.name}/: 
+          persist: true
 
-  # Stage 2: Train probe
+  # ===========================================================================
+  # Stage 2: 训练探测器 (Train Probe)
+  # ===========================================================================
+  # 对每个 (dataset, model, method) 组合训练
   train_probe: 
-    cmd: python scripts/train_probe.py
+    matrix: 
+      dataset: ${datasets}
+      model:  ${models}
+      method: ${methods}
+    cmd: >-
+      python scripts/train_probe. py
+      dataset. name=${item.dataset.name}
+      dataset.task_types=${item.dataset. task_types}
+      model=${item.model.name}
+      method=${item.method}
+      seed=${seed}
     deps:
-      - scripts/train_probe. py
+      - scripts/train_probe.py
       - src/
-      - outputs/features/
+      - outputs/features/${item.dataset. name}/${item. model.name}/
     params:
-      - config/config.yaml:
-          - method
-          - seed
-    outs: 
-      - outputs/models/
+      - seed
+      - cv_folds
+    outs:
+      - outputs/models/${item.dataset.name}/${item.model.name}/${item.method}/: 
+          persist: true
 
-  # Stage 3: Evaluate
+  # ===========================================================================
+  # Stage 3: 评估 (Evaluate)
+  # ===========================================================================
   evaluate:
-    cmd: python scripts/evaluate.py
+    matrix: 
+      dataset: ${datasets}
+      model: ${models}
+      method: ${methods}
+    cmd:  >-
+      python scripts/evaluate.py
+      dataset.name=${item.dataset. name}
+      dataset.task_types=${item.dataset.task_types}
+      model=${item.model.name}
+      method=${item.method}
+      seed=${seed}
     deps:
       - scripts/evaluate.py
-      - outputs/models/
-      - outputs/features/
+      - outputs/models/${item.dataset. name}/${item. model.name}/${item.method}/
+      - outputs/features/${item. dataset.name}/${item.model.name}/
+    params: 
+      - seed
     metrics:
-      - outputs/models/**/eval_results.json:
+      - outputs/models/${item.dataset. name}/${item. model.name}/${item.method}/seed_${seed}/eval_results.json:
           cache: false
+    plots:
+      - outputs/models/${item. dataset.name}/${item.model.name}/${item.method}/seed_${seed}/roc_curve.json:
+          cache:  false
+          x:  fpr
+          y:  tpr
 
-  # Stage 4: LLM Judge (optional)
-  llm_judge: 
-    cmd: python scripts/llm_judge.py
+  # ===========================================================================
+  # Stage 4: 汇总结果 (Aggregate Results)
+  # ===========================================================================
+  aggregate:
+    cmd: python scripts/aggregate_results.py
     deps:
-      - scripts/llm_judge.py
-      - src/
-    params:
-      - config/config.yaml:
-          - dataset
-          - llm_api
-    outs:
-      - outputs/results/llm_judge/
+      - scripts/aggregate_results. py
+      - outputs/models/
+    metrics:
+      - outputs/results/summary. json:
+          cache: false

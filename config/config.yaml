@@ -1,0 +1,28 @@
+# Main Hydra configuration
+# All parameters can be overridden via command line or DVC params
+
+defaults:
+  - dataset: ragtruth
+  - model: mistral_7b
+  - method: lapeigvals
+  - features: default
+  - generation_config: default
+  - prompt: ragtruth
+  - _self_
+
+# Global settings
+seed: 42
+
+# Directory paths
+base_dir: . 
+data_dir: ${base_dir}/data
+features_dir: ${base_dir}/outputs/features
+models_dir: ${base_dir}/outputs/models
+results_dir: ${base_dir}/outputs/results
+
+# Logging
+log_level: INFO
+
+# Short name for model (used in output paths)
+model:
+  short_name: null  # Will be derived from name if null
