@@ -139,6 +139,12 @@ class ExtractedFeatures:
     top_k_indices: Optional[torch.Tensor] = None
     perplexity: Optional[float] = None
     
+    # Token-level hallucination labels (following RAGTruth format)
+    # 0 = not hallucinated, 1 = hallucinated, for each token in input
+    hallucination_labels: Optional[List[int]] = None
+    # Token-level hallucination spans [[start_token_idx, end_token_idx_exclusive], ...]
+    hallucination_token_spans: Optional[List[List[int]]] = None
+    
     # Metadata
     label: Optional[int] = None
     layers: List[int] = field(default_factory=list)
@@ -174,6 +180,12 @@ class ExtractedFeatures:
         if self.perplexity is not None:
             data["perplexity"] = self.perplexity
         
+        # Save hallucination labels
+        if self.hallucination_labels is not None:
+            data["hallucination_labels"] = self.hallucination_labels
+        if self.hallucination_token_spans is not None:
+            data["hallucination_token_spans"] = self.hallucination_token_spans
+        
         torch.save({"info": data, "tensors": tensors}, path)
     
     @classmethod
@@ -193,10 +205,12 @@ class ExtractedFeatures:
             mode=ExtractionMode(info.get("mode", "teacher_forcing")),
             metadata=info.get("metadata", {}),
             perplexity=info.get("perplexity"),
+            hallucination_labels=info.get("hallucination_labels"),
+            hallucination_token_spans=info.get("hallucination_token_spans"),
             attn_diags=tensors.get("attn_diags"),
             laplacian_diags=tensors.get("laplacian_diags"),
             attn_entropy=tensors.get("attn_entropy"),
-            full_attention=tensors. get("full_attention"),
+            full_attention=tensors.get("full_attention"),
             hidden_states=tensors.get("hidden_states"),
             token_probs=tensors.get("token_probs"),
             token_entropy=tensors.get("token_entropy"),
@@ -227,10 +241,44 @@ class Prediction:
 
 
 @dataclass
+class HallucinationSpan:
+    """A span of hallucinated text within a response.
+    
+    Character positions are relative to the response text.
+    Following RAGTruth format for consistency.
+    """
+    start: int           # Start character position (inclusive)
+    end: int             # End character position (exclusive)
+    text: str = ""       # The hallucinated text content
+    label_type: str = "" # Type: "intrinsic", "extrinsic", "fabrication", etc.
+    explanation: str = "" # Why this is hallucinated
+    
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "start": self.start,
+            "end": self.end,
+            "text": self.text,
+            "label_type": self.label_type,
+            "explanation": self.explanation,
+        }
+    
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "HallucinationSpan":
+        return cls(
+            start=int(data.get("start", 0)),
+            end=int(data.get("end", 0)),
+            text=str(data.get("text", "")),
+            label_type=str(data.get("label_type", data.get("type", ""))),
+            explanation=str(data.get("explanation", "")),
+        )
+
+
+@dataclass
 class JudgeResult:
     """LLM-as-Judge evaluation result.
     
-    Format aligned with teacher_forcing labels for consistency.
+    Format aligned with RAGTruth labels for consistency.
+    Includes hallucination spans with character positions.
     """
     sample_id: str
     label: int           # 0=correct, 1=hallucinated (same as Sample.label)
@@ -238,6 +286,7 @@ class JudgeResult:
     explanation: str     # Reasoning from judge
     raw_response: str    # Raw API response
     model: str = ""      # Judge model name
+    hallucination_spans: List["HallucinationSpan"] = field(default_factory=list)  # Spans with char positions
     
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -247,10 +296,15 @@ class JudgeResult:
             "explanation": self.explanation,
             "raw_response": self.raw_response,
             "model": self.model,
+            "hallucination_spans": [s.to_dict() for s in self.hallucination_spans],
         }
     
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "JudgeResult":
+        spans = [
+            HallucinationSpan.from_dict(s) 
+            for s in data.get("hallucination_spans", [])
+        ]
         return cls(
             sample_id=str(data["sample_id"]),
             label=int(data["label"]),
@@ -258,6 +312,7 @@ class JudgeResult:
             explanation=str(data.get("explanation", "")),
             raw_response=str(data.get("raw_response", "")),
             model=str(data.get("model", "")),
+            hallucination_spans=spans,
         )
 
 

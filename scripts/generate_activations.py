@@ -97,31 +97,51 @@ def save_features_lapeigvals_style(features_list: List[ExtractedFeatures], outpu
 
 
 def save_answers(samples: List[Sample], output_path: Path) -> None:
-    """Save sample answers/responses to JSON."""
+    """Save sample answers/responses to JSON with hallucination span annotations.
+    
+    Format aligned with RAGTruth for consistency - includes hallucination spans
+    with character positions when available.
+    """
     answers = []
-    for sample in samples: 
-        answers.append({
+    for sample in samples:
+        sample_data = {
             "id": sample.id,
             "prompt": sample.prompt,
-            "response":  sample.response,
+            "response": sample.response,
             "reference": sample.reference,
             "label": sample.label,
-            "task_type": sample. task_type. value if sample.task_type else None,
-            "split": sample.split. value if sample.split else None,
-        })
+            "task_type": sample.task_type.value if sample.task_type else None,
+            "split": sample.split.value if sample.split else None,
+        }
+        
+        # Include hallucination spans if available (RAGTruth format)
+        if sample.metadata.get("hallucination_spans"):
+            sample_data["labels"] = [
+                {
+                    "start": span.get("start", 0),
+                    "end": span.get("end", 0),
+                    "text": span.get("text", ""),
+                    "label_type": span.get("type", span.get("label_type", "")),
+                }
+                for span in sample.metadata["hallucination_spans"]
+            ]
+        else:
+            sample_data["labels"] = []
+        
+        answers.append(sample_data)
     
     with open(output_path, "w", encoding="utf-8") as f:
         json.dump(answers, f, ensure_ascii=False, indent=2)
     
-    logger. info(f"Answers saved to {output_path}")
+    logger.info(f"Answers saved to {output_path}")
 
 
-def save_metadata(samples:  List[Sample], features_list: List[ExtractedFeatures], output_path: Path) -> None:
-    """Save extraction metadata."""
+def save_metadata(samples: List[Sample], features_list: List[ExtractedFeatures], output_path: Path) -> None:
+    """Save extraction metadata including hallucination token label statistics."""
     # 按 task_type 统计
     by_task = {}
     for s in samples:
-        task = s.task_type.value if s. task_type else "unknown"
+        task = s.task_type.value if s.task_type else "unknown"
         if task not in by_task:
             by_task[task] = {"total": 0, "positive": 0, "negative": 0}
         by_task[task]["total"] += 1
@@ -130,14 +150,20 @@ def save_metadata(samples:  List[Sample], features_list: List[ExtractedFeatures]
         elif s.label == 0:
             by_task[task]["negative"] += 1
     
+    # Count samples with token-level hallucination labels
+    n_with_token_labels = sum(1 for f in features_list if f.hallucination_labels is not None)
+    n_with_token_spans = sum(1 for f in features_list if f.hallucination_token_spans)
+    
     metadata = {
         "n_samples": len(samples),
         "n_features": len(features_list),
         "n_positive": sum(1 for s in samples if s.label == 1),
-        "n_negative": sum(1 for s in samples if s. label == 0),
+        "n_negative": sum(1 for s in samples if s.label == 0),
+        "n_with_token_labels": n_with_token_labels,
+        "n_with_token_spans": n_with_token_spans,
         "by_task_type": by_task,
         "sample_ids": [s.id for s in samples],
-        "prompt_lengths": [f. prompt_len for f in features_list],
+        "prompt_lengths": [f.prompt_len for f in features_list],
         "response_lengths": [f.response_len for f in features_list],
     }
     
