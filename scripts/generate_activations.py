@@ -27,20 +27,20 @@ logger = logging.getLogger(__name__)
 
 def get_model_short_name(cfg: DictConfig) -> str:
     """Get short name for model."""
-    if hasattr(cfg.model, 'short_name') and cfg.model. short_name: 
-        return cfg. model.short_name
+    if hasattr(cfg.model, 'short_name') and cfg.model.short_name:
+        return cfg.model.short_name
     # Extract from path
     model_name = cfg.model.name
     return model_name.split("/")[-1]
 
 
-def build_output_dir(cfg:  DictConfig) -> Path:
+def build_output_dir(cfg: DictConfig) -> Path:
     """Build output directory path from config."""
     base_dir = Path(cfg.features_dir)
-    dataset_name = cfg. dataset.name
+    dataset_name = cfg.dataset.name
     
     # 处理 task_types
-    task_types = cfg. dataset.get('task_types', None)
+    task_types = cfg.dataset.get('task_types', None)
     if task_types is None or task_types == 'null':
         task_suffix = "all"
     elif isinstance(task_types, list):
@@ -63,27 +63,27 @@ def save_features_lapeigvals_style(features_list: List[ExtractedFeatures], outpu
     attn_entropy = []
     token_probs = []
     
-    for feat in features_list: 
+    for feat in features_list:
         if feat.attn_diags is not None:
-            attn_diags.append(feat.attn_diags. cpu())
-        if feat. laplacian_diags is not None: 
-            laplacian_diags.append(feat.laplacian_diags. cpu())
-        if feat.hidden_states is not None: 
-            hidden_states. append(feat.hidden_states.cpu())
-        if feat. attn_entropy is not None:
-            attn_entropy. append(feat.attn_entropy.cpu())
-        if feat.token_probs is not None: 
-            token_probs.append(feat. token_probs. cpu())
+            attn_diags.append(feat.attn_diags.cpu())
+        if feat.laplacian_diags is not None:
+            laplacian_diags.append(feat.laplacian_diags.cpu())
+        if feat.hidden_states is not None:
+            hidden_states.append(feat.hidden_states.cpu())
+        if feat.attn_entropy is not None:
+            attn_entropy.append(feat.attn_entropy.cpu())
+        if feat.token_probs is not None:
+            token_probs.append(feat.token_probs.cpu())
     
     if attn_diags:
-        torch.save(attn_diags, output_dir / "attn_diags. pt")
-        logger.info(f"Saved attention diagonals:  {len(attn_diags)} samples")
+        torch.save(attn_diags, output_dir / "attn_diags.pt")
+        logger.info(f"Saved attention diagonals: {len(attn_diags)} samples")
     
     if laplacian_diags:
         torch.save(laplacian_diags, output_dir / "laplacian_diags.pt")
         logger.info(f"Saved Laplacian diagonals: {len(laplacian_diags)} samples")
     
-    if hidden_states: 
+    if hidden_states:
         torch.save(hidden_states, output_dir / "hidden_states.pt")
         logger.info(f"Saved hidden states: {len(hidden_states)} samples")
     
@@ -93,7 +93,7 @@ def save_features_lapeigvals_style(features_list: List[ExtractedFeatures], outpu
     
     if token_probs:
         torch.save(token_probs, output_dir / "token_probs.pt")
-        logger.info(f"Saved token probabilities:  {len(token_probs)} samples")
+        logger.info(f"Saved token probabilities: {len(token_probs)} samples")
 
 
 def save_answers(samples: List[Sample], output_path: Path) -> None:
@@ -178,7 +178,7 @@ def main(cfg: DictConfig) -> None:
     """Main entry point for feature extraction."""
     
     setup_logging(level=logging.INFO)
-    set_seed(cfg. seed)
+    set_seed(cfg.seed)
     
     logger.info("=" * 60)
     logger.info("Generate Activations")
@@ -197,7 +197,7 @@ def main(cfg: DictConfig) -> None:
     # Build dataset config
     dataset_dict = OmegaConf.to_container(cfg.dataset, resolve=True)
     # 处理 task_types
-    if dataset_dict.get('task_types') == 'null' or dataset_dict. get('task_types') is None:
+    if dataset_dict.get('task_types') == 'null' or dataset_dict.get('task_types') is None:
         dataset_dict['task_types'] = None  # None 表示所有类型
     
     dataset_config = DatasetConfig(**dataset_dict)
@@ -205,7 +205,7 @@ def main(cfg: DictConfig) -> None:
     features_config = FeaturesConfig(**OmegaConf.to_container(cfg.features, resolve=True))
     
     # Load dataset
-    logger.info(f"Loading dataset:  {dataset_config. name}")
+    logger.info(f"Loading dataset: {dataset_config.name}")
     logger.info(f"Task types filter: {dataset_config.task_types}")
     
     dataset = get_dataset(config=dataset_config)
@@ -214,21 +214,21 @@ def main(cfg: DictConfig) -> None:
     
     # 按 task_type 统计
     task_counts = {}
-    for s in samples: 
-        task = s.task_type.value if s. task_type else "unknown"
-        task_counts[task] = task_counts. get(task, 0) + 1
+    for s in samples:
+        task = s.task_type.value if s.task_type else "unknown"
+        task_counts[task] = task_counts.get(task, 0) + 1
     logger.info(f"Samples by task type: {task_counts}")
     
     # Count labels
     n_pos = sum(1 for s in samples if s.label == 1)
-    n_neg = sum(1 for s in samples if s. label == 0)
+    n_neg = sum(1 for s in samples if s.label == 0)
     n_unknown = sum(1 for s in samples if s.label is None)
     logger.info(f"Labels: {n_pos} positive, {n_neg} negative, {n_unknown} unknown")
     
     # Load model
     logger.info(f"Loading model: {model_config.name}")
     model = get_model(model_config)
-    logger.info(f"Model loaded: {model.num_layers} layers, {model. num_heads} heads")
+    logger.info(f"Model loaded: {model.num_layers} layers, {model.num_heads} heads")
     
     # Create extractor
     extractor = create_extractor(model, features_config)
@@ -247,7 +247,7 @@ def main(cfg: DictConfig) -> None:
     pickle_path = output_dir / "features.pkl"
     with open(pickle_path, "wb") as f:
         pickle.dump({
-            "features":  features_list,
+            "features": features_list,
             "samples": samples,
             "config": OmegaConf.to_container(cfg, resolve=True),
         }, f)
@@ -257,7 +257,7 @@ def main(cfg: DictConfig) -> None:
     save_answers(samples, output_dir / "answers.json")
     
     # Save labels
-    labels = torch. tensor([s.label if s.label is not None else -1 for s in samples])
+    labels = torch.tensor([s.label if s.label is not None else -1 for s in samples])
     torch.save(labels, output_dir / "labels.pt")
     
     # Save metadata
@@ -271,5 +271,5 @@ def main(cfg: DictConfig) -> None:
     logger.info("=" * 60)
 
 
-if __name__ == "__main__": 
+if __name__ == "__main__":
     main()

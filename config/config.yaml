@@ -14,7 +14,7 @@ defaults:
 seed: 42
 
 # Directory paths
-base_dir: . 
+base_dir: .
 data_dir: ${base_dir}/data
 features_dir: ${base_dir}/outputs/features
 models_dir: ${base_dir}/outputs/models

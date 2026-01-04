@@ -1,14 +1,14 @@
 # =============================================================================
 # DVC Pipeline for Hallucination Detection
 # =============================================================================
-# 
+#
 # 使用方法:
 #   1. 修改 params.yaml 中的参数
 #   2. 运行 `dvc repro` 执行整个流水线
 #   3. 运行 `dvc repro -f` 强制重新执行
 #   4. 运行 `dvc metrics show` 查看所有结果
 #
-# 矩阵式运行:  datasets × models × methods 的所有组合
+# 矩阵式运行: datasets × models × methods 的所有组合
 # =============================================================================
 
 vars:
@@ -19,13 +19,13 @@ stages:
   # Stage 1: 特征提取 (Generate Activations)
   # ===========================================================================
   # 对每个 (dataset, model) 组合提取特征
-  generate_activations: 
+  generate_activations:
     matrix:
       dataset: ${datasets}
       model: ${models}
     cmd: >-
       python scripts/generate_activations.py
-      dataset. name=${item.dataset. name}
+      dataset.name=${item.dataset.name}
       dataset.task_types=${item.dataset.task_types}
       dataset.splits=${item.dataset.splits}
       model=${item.model.name}
@@ -39,66 +39,66 @@ stages:
     params:
       - features.mode
       - seed
-    outs: 
-      - outputs/features/${item.dataset.name}/${item.model.name}/: 
+    outs:
+      - outputs/features/${item.dataset.name}/${item.model.name}/:
           persist: true
 
   # ===========================================================================
   # Stage 2: 训练探测器 (Train Probe)
   # ===========================================================================
   # 对每个 (dataset, model, method) 组合训练
-  train_probe: 
-    matrix: 
+  train_probe:
+    matrix:
       dataset: ${datasets}
-      model:  ${models}
+      model: ${models}
       method: ${methods}
     cmd: >-
-      python scripts/train_probe. py
-      dataset. name=${item.dataset.name}
-      dataset.task_types=${item.dataset. task_types}
+      python scripts/train_probe.py
+      dataset.name=${item.dataset.name}
+      dataset.task_types=${item.dataset.task_types}
       model=${item.model.name}
       method=${item.method}
       seed=${seed}
     deps:
       - scripts/train_probe.py
       - src/
-      - outputs/features/${item.dataset. name}/${item. model.name}/
+      - outputs/features/${item.dataset.name}/${item.model.name}/
     params:
       - seed
       - cv_folds
     outs:
-      - outputs/models/${item.dataset.name}/${item.model.name}/${item.method}/: 
+      - outputs/models/${item.dataset.name}/${item.model.name}/${item.method}/:
           persist: true
 
   # ===========================================================================
   # Stage 3: 评估 (Evaluate)
   # ===========================================================================
   evaluate:
-    matrix: 
+    matrix:
       dataset: ${datasets}
       model: ${models}
       method: ${methods}
-    cmd:  >-
+    cmd: >-
       python scripts/evaluate.py
-      dataset.name=${item.dataset. name}
+      dataset.name=${item.dataset.name}
       dataset.task_types=${item.dataset.task_types}
       model=${item.model.name}
       method=${item.method}
       seed=${seed}
     deps:
       - scripts/evaluate.py
-      - outputs/models/${item.dataset. name}/${item. model.name}/${item.method}/
-      - outputs/features/${item. dataset.name}/${item.model.name}/
-    params: 
+      - outputs/models/${item.dataset.name}/${item.model.name}/${item.method}/
+      - outputs/features/${item.dataset.name}/${item.model.name}/
+    params:
       - seed
     metrics:
-      - outputs/models/${item.dataset. name}/${item. model.name}/${item.method}/seed_${seed}/eval_results.json:
+      - outputs/models/${item.dataset.name}/${item.model.name}/${item.method}/seed_${seed}/eval_results.json:
           cache: false
     plots:
-      - outputs/models/${item. dataset.name}/${item.model.name}/${item.method}/seed_${seed}/roc_curve.json:
-          cache:  false
-          x:  fpr
-          y:  tpr
+      - outputs/models/${item.dataset.name}/${item.model.name}/${item.method}/seed_${seed}/roc_curve.json:
+          cache: false
+          x: fpr
+          y: tpr
 
   # ===========================================================================
   # Stage 4: 汇总结果 (Aggregate Results)
@@ -106,8 +106,8 @@ stages:
   aggregate:
     cmd: python scripts/aggregate_results.py
     deps:
-      - scripts/aggregate_results. py
+      - scripts/aggregate_results.py
       - outputs/models/
     metrics:
-      - outputs/results/summary. json:
+      - outputs/results/summary.json:
           cache: false
