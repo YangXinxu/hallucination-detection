@@ -9,13 +9,13 @@ import json
 import logging
 
 from src.core import Sample, TaskType, SplitType, DatasetConfig, DatasetError, DATASETS
-from . base import BaseDataset
+from .base import BaseDataset
 
-logger = logging. getLogger(__name__)
+logger = logging.getLogger(__name__)
 
 _TASK_TYPE_MAP = {
-    "QA": TaskType. QA,
-    "Summary": TaskType. SUMMARY,
+    "QA": TaskType.QA,
+    "Summary": TaskType.SUMMARY,
     "Data2txt": TaskType.DATA2TXT,
 }
 
@@ -25,7 +25,7 @@ class RAGTruthDataset(BaseDataset):
     """RAGTruth hallucination detection dataset. 
     
     RAGTruth contains: 
-    - response. jsonl: Model responses with hallucination labels
+    - response.jsonl: Model responses with hallucination labels
     - source_info.jsonl: Source context and prompts
     
     Labels are at span level, converted to response level: 
@@ -54,7 +54,7 @@ class RAGTruthDataset(BaseDataset):
             exclude_quality = exclude_quality or config.exclude_quality
             
         self.split_filter:  Optional[Set[str]] = set(splits) if splits else None
-        self. task_filter: Optional[Set[str]] = set(task_types) if task_types else None
+        self.task_filter: Optional[Set[str]] = set(task_types) if task_types else None
         self.model_filter: Optional[Set[str]] = set(models) if models else None
         self.exclude_quality:  Set[str] = set(exclude_quality or ["incorrect_refusal", "truncated"])
         
@@ -89,7 +89,7 @@ class RAGTruthDataset(BaseDataset):
             return self._source_cache
         
         self._source_cache = {}
-        source_file = self.path / "source_info. jsonl"
+        source_file = self.path / "source_info.jsonl"
         
         with open(source_file, 'r', encoding='utf-8') as f:
             for line in f:
@@ -97,7 +97,7 @@ class RAGTruthDataset(BaseDataset):
                 if not line: 
                     continue
                 item = json.loads(line)
-                source_id = item. get("source_id")
+                source_id = item.get("source_id")
                 if source_id:
                     self._source_cache[source_id] = item
         
@@ -107,11 +107,11 @@ class RAGTruthDataset(BaseDataset):
     def __iter__(self) -> Iterator[Sample]:
         """Iterate over samples."""
         source_map = self._load_source_info()
-        response_file = self. path / "response. jsonl"
+        response_file = self.path / "response.jsonl"
         
         with open(response_file, 'r', encoding='utf-8') as f:
             for line in f: 
-                line = line. strip()
+                line = line.strip()
                 if not line:
                     continue
                     
@@ -135,7 +135,7 @@ class RAGTruthDataset(BaseDataset):
             return False
         
         # Model filter
-        if self.model_filter and item. get("model", "") not in self.model_filter: 
+        if self.model_filter and item.get("model", "") not in self.model_filter: 
             return False
         
         return True
@@ -146,7 +146,7 @@ class RAGTruthDataset(BaseDataset):
         source_map: Dict[str, Dict]
     ) -> Optional[Sample]:
         """Parse response item to Sample."""
-        source_id = item. get("source_id", "")
+        source_id = item.get("source_id", "")
         source_info = source_map.get(source_id, {})
         
         if not source_info: 
@@ -158,8 +158,8 @@ class RAGTruthDataset(BaseDataset):
         task_type = _TASK_TYPE_MAP.get(task_type_str, TaskType.QA)
         
         # Apply task filter
-        if self. task_filter: 
-            if task_type_str not in self. task_filter and task_type. value not in self.task_filter:
+        if self.task_filter: 
+            if task_type_str not in self.task_filter and task_type.value not in self.task_filter:
                 return None
         
         # Build prompt
@@ -175,12 +175,12 @@ class RAGTruthDataset(BaseDataset):
         if split_str == "train":
             split = SplitType.TRAIN
         elif split_str == "test":
-            split = SplitType. TEST
+            split = SplitType.TEST
         elif split_str == "validation":
-            split = SplitType. VALIDATION
+            split = SplitType.VALIDATION
         
         return Sample(
-            id=str(item. get("id", "")),
+            id=str(item.get("id", "")),
             prompt=prompt,
             response=item.get("response", ""),
             reference="",
@@ -194,7 +194,7 @@ class RAGTruthDataset(BaseDataset):
                 "quality": item.get("quality"),
                 "hallucination_spans": [
                     {
-                        "text": l. get("text", ""),
+                        "text": l.get("text", ""),
                         "type": l.get("label_type", ""),
                         "start": l.get("start"),
                         "end": l.get("end"),
@@ -208,12 +208,12 @@ class RAGTruthDataset(BaseDataset):
     
     def _build_prompt(self, source_info:  Dict[str, Any], task_type:  TaskType) -> str:
         """Build prompt from source info."""
-        source_data = source_info. get("source_info", {})
+        source_data = source_info.get("source_info", {})
         original_prompt = source_info.get("prompt", "")
         
         if task_type == TaskType.QA and isinstance(source_data, dict):
-            question = source_data. get("question", "")
-            passages = source_data. get("passages", "")
+            question = source_data.get("question", "")
+            passages = source_data.get("passages", "")
             
             if isinstance(passages, list):
                 passages = "\n\n".join(str(p) for p in passages)
@@ -241,7 +241,7 @@ class RAGTruthDataset(BaseDataset):
     def get_clean(self) -> Iterator[Sample]:
         """Get only clean (non-hallucinated) samples."""
         for sample in self: 
-            if sample. label == 0:
+            if sample.label == 0:
                 yield sample
     
     def get_by_task(self, task_type: TaskType) -> Iterator[Sample]: 
@@ -259,11 +259,11 @@ class RAGTruthDataset(BaseDataset):
         stats["by_quality"] = {}
         
         source_map = self._load_source_info()
-        response_file = self. path / "response. jsonl"
+        response_file = self.path / "response.jsonl"
         
         with open(response_file, 'r', encoding='utf-8') as f:
             for line in f: 
-                line = line. strip()
+                line = line.strip()
                 if not line:
                     continue
                 item = json.loads(line)

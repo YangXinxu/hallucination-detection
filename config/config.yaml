@@ -6,7 +6,7 @@ defaults:
   - model: mistral_7b
   - method: lapeigvals
   - features: default
-  - generation_config: default
+  - generation: default
   - prompt: ragtruth
   - _self_
 
